@@ -1,0 +1,7 @@
+User name is John Doe.
+User is an AI Engineer.
+User is interested in AI Agents.
+User is based in San Francisco, California.
+The user prefers structured markdown reports.
+The user prefers concise and professional writing.
+The user wants practical recommendations and clear next steps.
