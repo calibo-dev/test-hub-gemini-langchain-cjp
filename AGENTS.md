@@ -1,133 +1,214 @@
-# Agents Documentation
+# Workflow and Agent Documentation
 
 ## Overview
 
-This project implements a LangChain-based two-agent system for researching and reporting on various topics. It uses two specialized agents in a sequential process to gather information and generate a comprehensive markdown report.
+This template implements a **FastAPI-based LangChain workflow** for automated topic research and report generation.
+
+### Purpose
+Execute a structured workflow that researches a topic and produces a markdown report.
+
+### Workflow Pattern
+Sequential workflow with explicit stage handoff.
+
+### Core Stages
+
+- **Research Stage**
+  - gathers topic information
+  - optionally invokes tools or retrieval
+  - produces structured research notes
+
+- **Reporting Stage**
+  - converts research notes into a formatted markdown report
+
+### Execution Model
+
+A workflow controller orchestrates stage execution and passes structured outputs between stages.
+
+### Output
+
+Final report written to:
+
+`report.md`
 
 ## Architecture
 
-The system uses LangChain with FastAPI integration and follows a sequential multi-agent orchestration pattern for research and report generation.
+The system uses **FastAPI** and **LangChain Runnable pipelines** to implement deterministic workflow execution.
 
-- **LLM Provider Selection**: Controlled by `PROVIDER` environment variable
-  - `PROVIDER=OPENAI`: Uses OpenAI chat models (requires `OPENAI_API_KEY` or `OPENAI_API_KEY_SECRET`)
-  - `PROVIDER=OLLAMA` (default): Uses Ollama with `llama3.2`
-- **Coordination Pattern**: Sequential multi-agent orchestration
-- **Framework**: LangChain with FastAPI integration
-- **Python Version**: 3.11 - 3.12
+### High-Level Flow
 
-## Agents
+Client → FastAPI → Workflow Controller → Research Stage → Reporting Stage → Markdown Report
 
-### 1. Researcher Agent
+### Framework
 
-**Role**: `{topic} Senior Data Researcher`
+- FastAPI
+- LangChain
 
-**Goal**: Uncover relevant, accurate, and practical developments in the specified topic.
+### LLM Provider Selection
 
-**Backstory**:  
-A seasoned researcher with a knack for uncovering the latest developments in any given topic. Known for the ability to find the most relevant information and present it in a clear and concise manner.
+Controlled by the `PROVIDER` environment variable.
 
-**Runtime Behavior**:
-- Uses the provider and model configuration resolved at runtime
-- Focuses on gathering relevant findings for the requested topic
-- Produces structured research notes for downstream use
-- Does not generate the final polished report
+Supported providers:
 
-**Primary Responsibility**: Research Task
-- Conducts focused research on the specified topic
-- Uses available context and knowledge inputs when provided
-- Identifies relevant findings, trends, and supporting details
-- Outputs structured research notes for the reporting agent
+- `OPENAI`
+- `OLLAMA`
 
-### 2. Reporting Analyst Agent
+### LLM Initialization
 
-**Role**: `{topic} Reporting Analyst`
+LLM configuration is centralized through an **LLM factory**.
 
-**Goal**: Create detailed reports based on research findings.
+Location:
 
-**Backstory**:  
-A meticulous analyst with a keen eye for detail. Known for the ability to turn complex information into clear and concise reports, making it easy for others to understand and act on the information provided.
+`src/latest_ai_development/llm/llm_factory.py`
 
-**Runtime Behavior**:
-- Uses the provider and model configuration resolved at runtime
-- Consumes the research output from the previous agent
-- Expands findings into a clear markdown report
-- Saves final output to `report.md`
+The factory resolves provider configuration and returns the correct chat model.
 
-**Primary Responsibility**: Reporting Task
-- Reviews the research context produced by the researcher agent
-- Expands major findings into clear sections
-- Produces a complete markdown report with actionable structure
-- Outputs the final report to `report.md`
+### Chain Construction
+
+LLM pipelines are constructed using a **Chain Builder pattern**.
+
+Location:
+
+`src/latest_ai_development/chains/`
+
+Examples:
+
+- `research_chain_builder.py`
+- `reporting_chain_builder.py`
+
+Chain builders assemble LangChain Runnable pipelines combining:
+
+- prompts
+- models
+- tools
+- output parsers
+
+Stages call these builders rather than constructing pipelines directly.
+
+## Workflow Stages
+
+The workflow contains two sequential stages.
+
+### Research Stage
+
+Purpose  
+Collect relevant information for the requested topic.
+
+Inputs
+
+- topic
+- runtime context
+- optional knowledge sources
+
+Execution Pipeline
+
+Prompt → LLM(bind_tools) → Tool Execution → LLM → Output Parser
+
+Output
+
+Structured research notes including:
+
+- topic overview
+- key findings
+- supporting details
+- assumptions
+- suggested report structure
 
 
-## Workflow
+### Reporting Stage
 
-The agents work in a sequential process:
+Purpose  
+Convert research notes into a structured markdown report.
 
-```text
-1. Researcher Agent
-   └─> Investigates the requested topic
-       └─> Produces structured research findings
-           └─> Hands off context to the reporting agent
+Inputs
 
-2. Reporting Analyst Agent
-   └─> Consumes the researcher’s findings
-       └─> Organizes them into a structured markdown report
-           └─> Writes the final output to `report.md`
-```
+- research notes
+
+Execution Pipeline
+
+Prompt → LLM → Output Parser
+
+Output
+
+Final markdown report written to `report.md`.
+
+## Workflow Execution
+
+The workflow executes stages sequentially.
+
+### Execution Order
+
+1. Research Stage  
+2. Reporting Stage
+
+### Workflow Controller
+
+`LatestAiDevelopmentWorkflow`
+
+Location
+
+`src/latest_ai_development/workflow.py`
+
+### Stage Interface
+
+Each stage implements:
+
+run(inputs: dict) → dict
+
+The research stage output becomes the input for the reporting stage.
 
 ## Configuration Files
 
-### `agents.yaml`
+Runtime behavior is configured using YAML files.
 
-Located at: `src/latest_ai_development/config/agents.yaml`
+### stages.yaml
 
-Defines agent configuration for the orchestration, including:
+Location  
+`src/latest_ai_development/config/stages.yaml`
 
-- role
-- goal
-- backstory
-- behavioral instructions
+Purpose  
+Defines stage prompts and execution instructions.
 
-### `tasks.yaml`
+---
 
-Located at: `src/latest_ai_development/config/tasks.yaml`
+### workflow.yaml
 
-Defines task configuration for agent coordination, including:
+Location  
+`src/latest_ai_development/config/workflow.yaml`
 
-- task descriptions
-- expected outputs
-- execution order across agents
+Purpose  
+Defines stage order and workflow configuration.
 
-### `models.yaml`
+---
 
-Located at: `src/latest_ai_development/config/models.yaml`
+### models.yaml
 
-Defines provider-specific model defaults, including:
+Location  
+`src/latest_ai_development/config/models.yaml`
 
-- chat model name
+Purpose  
+Defines model settings such as:
+
+- model name
 - temperature
-- max token configuration
+- token limits
 
-### `settings.py`
+---
 
-Located at: `src/latest_ai_development/config/settings.py`
+### settings.py
 
-Loads runtime settings from environment variables and resolves:
+Location  
+`src/latest_ai_development/config/settings.py`
 
-- provider
-- host / port
-- context path
-- output path
-- config file paths
+Purpose  
+Loads runtime configuration from environment variables.
 
 ## Usage
 
-### Running the Agent Orchestration
+### Running the Workflow
 
-The system can be executed in multiple ways.
+The workflow can be executed through multiple interfaces.
 
-#### 1. Direct Execution
+### Direct Execution
 
 ```python
 from latest_ai_development.workflow import LatestAiDevelopmentWorkflow
@@ -136,7 +217,7 @@ from datetime import datetime
 inputs = {
     "topic": "Your Topic Here",
     "current_year": int(datetime.now().year),
-    "save_output": True,
+    "save_output": True
 }
 
 LatestAiDevelopmentWorkflow().kickoff(inputs=inputs)
@@ -168,121 +249,280 @@ run_with_trigger '<json_payload>'
 
 ## Environment Variables
 
-- `PROVIDER`: Selects the LLM provider (`OPENAI` or `OLLAMA`, default: `OLLAMA`)
-- `OPENAI_API_KEY`: API key for the OpenAI provider
-- `OPENAI_API_KEY_SECRET`: AWS Secrets Manager secret name used to resolve the OpenAI API key
-- `OLLAMA_BASE_URL`: Base URL for the Ollama API
-- `PORT`: Server port (default: `8080`)
-- `API_HOST`: Server host (default: `0.0.0.0`)
-- `AWS_REGION`: AWS region for Secrets Manager (default: `us-east-1`)
-- `CONTEXT`: Path used for knowledge and context files (**mandatory**)
-- `REPORT_OUTPUT_FILE`: Output report filename (default: `report.md`)
+The system uses environment variables to resolve runtime configuration.
+
+- **`PROVIDER`**
+  - **Purpose**: Selects the LLM provider
+  - **Supported Values**:
+    - `OPENAI`
+    - `OLLAMA`
+
+- **`OPENAI_API_KEY`**
+  - **Purpose**: Provides the API key for the OpenAI provider
+
+- **`OPENAI_API_KEY_SECRET`**
+  - **Purpose**: Specifies the secret name used to resolve the OpenAI API key from AWS Secrets Manager
+
+- **`OLLAMA_BASE_URL`**
+  - **Purpose**: Specifies the base URL for the Ollama service
+
+- **`PORT`**
+  - **Purpose**: Specifies the FastAPI server port
+  - **Default**: `8080`
+
+- **`API_HOST`**
+  - **Purpose**: Specifies the FastAPI server host
+  - **Default**: `0.0.0.0`
+
+- **`AWS_REGION`**
+  - **Purpose**: Specifies the AWS region for secret resolution
+  - **Default**: `us-east-1`
+
+- **`CONTEXT`**
+  - **Purpose**: Specifies the path for context, knowledge, or input files used by the workflow
+
+- **`REPORT_OUTPUT_FILE`**
+  - **Purpose**: Specifies the output filename for the final markdown report
+  - **Default**: `report.md`
 
 ## Integration Features
 
-### FastAPI Server
+The system includes integration points for API execution, secret resolution, and workflow extensibility.
 
-- Health check endpoint: `GET /health`
-- Workflow execution endpoint: `POST /ask`
-- Root path: `/testing`
+- **FastAPI Integration**:
+  - **Purpose**: Exposes the workflow through HTTP endpoints
+  - **Endpoints**:
+    - `GET /health`
+    - `POST /ask`
+  - **Root Path**:
+    - `/testing`
 
-### AWS Secrets Manager
+- **AWS Secrets Manager Integration**:
+  - **Purpose**: Resolves provider credentials securely at runtime
+  - **Capabilities**:
+    - retrieves secrets by name
+    - supports secret-based API key resolution
+    - uses configurable AWS region settings
 
-The system includes secret resolution support for secure credential management:
+- **Context and Retrieval Integration**:
+  - **Purpose**: Supports external context or knowledge inputs for research
+  - **Capabilities**:
+    - loads configured context inputs
+    - supports retrieval-style enrichment where enabled
+    - passes enriched context into workflow stages
 
-- Retrieves secrets from AWS Secrets Manager
-- Supports both full secret retrieval and specific key extraction
-- Uses configurable AWS region
+- **Tool Integration**:
+  - **Purpose**: Extend workflow stages with LangChain-compatible tools to access external capabilities such as search, APIs, or data processing.
 
-### Custom Tools
+  - **Capabilities**:
+    - implements tools using the LangChain `@tool` decorator
+    - allows tools to be attached to LLM pipelines using `bind_tools()`
+    - enables the LLM to dynamically decide when a tool should be invoked
+    - supports modular tool implementations that can be reused across stages
+    - allows tools to be attached to the research stage or future stages without modifying the workflow controller
 
-The system supports custom tool development using LangChain-compatible tools.  
-Example template available at: `src/latest_ai_development/tools/custom_tool.py`
+  - **Execution Model**:
+    Tools are attached to the LLM during pipeline construction.
 
-Custom tools can be implemented as:
+    Example execution pattern:
 
-- callable utilities
-- LangChain `@tool` functions
-- other LangChain-compatible helpers invoked from the orchestration
+    Prompt → LLM(bind_tools) → Tool Execution → LLM → OutputParser
+
+    In this model:
+    - the LLM determines when a tool should be called
+    - LangChain executes the tool
+    - the tool result is returned to the LLM for final synthesis
+
+- **Example Tool Location**:
+  - `src/latest_ai_development/tools/custom_tool.py`
+
+- **Example Tool Implementation**:
+
+```python
+from langchain.tools import tool
+
+@tool
+def search_tool(query: str) -> str:
+    """Search external information sources."""
+    return "Search results..."
+```
 
 ## Output
 
-The final output is a markdown report (`report.md`) containing:
+The workflow produces a final markdown report as its primary output.
 
-- the main findings identified during research
-- structured sections organized by the reporting agent
-- relevant insights, details, and practical takeaways
-- formatting without markdown code fences for clean presentation
+- **Output File**:
+  - `report.md`
 
+- **Output Type**:
+  - Markdown document
+
+- **Generated By**:
+  - The reporting stage
+
+- **Typical Content**:
+  - topic summary
+  - key findings
+  - supporting analysis
+  - insights and recommendations
+  - clean markdown formatting for downstream use
+
+- **Behavior**:
+  - The final report is generated after successful completion of all workflow stages
+  - Output persistence is controlled by workflow configuration and runtime settings
+  - The output path can be overridden through configuration when needed
 
 ## Deployment
 
-The project includes:
-- Docker support (Dockerfile, .dockerignore)
-- Kubernetes Helm charts (helm_chart/)
-- Jenkins CI/CD pipelines (Jenkinsfile, Jenkinsfile.ci, Jenkinsfile.deploy)
+The project includes deployment and delivery assets for multiple environments.
+
+- **Containerization**: Docker support with `Dockerfile` and `.dockerignore`
+- **Kubernetes Deployment**: Helm chart support in `helm_chart/`
+- **CI/CD Integration**: Jenkins pipeline files for build and deployment workflows
 
 
 ## Dependencies
 
-Key dependencies include:
+The workflow relies on a set of core libraries for model integration, API serving, configuration, and runtime support.
 
-- `langchain` - Core LangChain framework
-- `langchain-openai` - OpenAI integration
-- `langchain-community` - Community integrations
-- `langchain-ollama` - Ollama integration
-- `fastapi` - API server
-- `uvicorn` - ASGI server
-- `boto3` - AWS integration
-- `pydantic` - Data validation
-- `pydantic-settings` - Environment-based settings management
-- `PyYAML` - YAML configuration loading
+- **`langchain`**
+  - **Purpose**:
+    - provides the core LangChain abstractions used for workflow composition
+  
+- **langchain-core**
+  - Provides runnable pipelines and core abstractions
+
+- **`langchain-openai`**
+  - **Purpose**:
+    - provides OpenAI model integration for LangChain
+
+- **`langchain-community`**
+  - **Purpose**:
+    - provides community-supported integrations and utilities
+
+- **`langchain-ollama`**
+  - **Purpose**:
+    - provides Ollama model integration for LangChain
+
+- **`fastapi`**
+  - **Purpose**:
+    - exposes the workflow through HTTP endpoints
+
+- **`uvicorn`**
+  - **Purpose**:
+    - runs the FastAPI application as an ASGI server
+
+- **`boto3`**
+  - **Purpose**:
+    - supports AWS service integration, including Secrets Manager access
+
+- **`pydantic`**
+  - **Purpose**:
+    - provides data validation and schema modeling
+
+- **`pydantic-settings`**
+  - **Purpose**:
+    - supports environment-based configuration management
+
+- **`PyYAML`**
+  - **Purpose**:
+    - loads YAML-based configuration files
 
 ## Extending the System
 
-### Adding New Roles
+The template is designed so new capabilities can be added with minimal changes.
 
-1. Define the role configuration in `agents.yaml`
-2. Add or update role-specific instructions in `prompts.py`
-3. Add or update orchestration logic in `workflow.py`
+### Adding a New Stage
 
-### Adding New Tasks
+Create a new processing step in the workflow.
 
-1. Define the task configuration in `tasks.yaml`
-2. Update task sequencing in `workflow.py`
-3. Define how outputs are passed between agents
+Typical steps:
 
-### Creating Custom Tools
+1. Create a stage in `stages/`
+2. Define the LLM pipeline in `chains/`
+3. Update the stage order in `workflow.yaml`
 
-1. Create a LangChain-compatible tool in `tools/custom_tool.py`
-2. Define an input schema using Pydantic if needed
-3. Implement the callable or `@tool`
-4. Connect the tool within the orchestration where required
+Examples of new stages:
 
+- validation
+- enrichment
+- summarization
+- review
+
+---
+
+### Adding a Tool
+
+Tools allow the workflow to call external systems such as APIs or search services.
+
+Typical steps:
+
+1. Implement a tool in `tools/` using the `@tool` decorator
+2. Register the tool in `tool_registry.py`
+3. Attach the tool to a chain using `bind_tools()`
+
+---
+
+### Adding Retrieval or Context
+
+You can improve research results by adding external knowledge sources.
+
+Typical steps:
+
+1. Add or configure a retrieval source
+2. Load the context during the research stage
+3. Inject the retrieved information into the pipeline
+
+---
+
+### Using Tool-Enabled Agents (Optional)
+
+If a stage requires dynamic decision-making, it can be replaced with a tool-enabled agent.
+
+Typical steps:
+
+1. Attach tools using `bind_tools()`
+2. Allow the model to choose tools dynamically
+3. Ensure outputs remain compatible with downstream stages
+
+---
+
+### Extension Guidelines
+
+When extending the system:
+
+- keep stages focused on a single responsibility
+- keep tools modular and reusable
+- use structured inputs and outputs between stages
+- avoid tightly coupling stages together
+  
 ## Restrictions and Guidelines
 
 ### Environment Variables
-- **PORT**: MUST be read from environment variable. Do not hardcode port values.
-- **CONTEXT**: Context path is MANDATORY for running the agent. Must be set as an environment variable.
+
+- **`PORT`**: Must be read from the environment variable. Do not hardcode port values.
+- **`CONTEXT`**: Context path is mandatory for running the workflow. It must be set as an environment variable.
 
 ### Dockerfile
-- The Dockerfile start command MUST NOT be modified
-- Any changes made to the Dockerfile MUST adhere to the existing start command
-- Maintain compatibility with the current container startup process
+
+- The Dockerfile start command must not be modified.
+- Any Dockerfile updates must remain compatible with the current startup process.
 
 ### Protected Files
-The following files and directories are PROTECTED and should NOT be modified:
+
+The following files and directories are protected and should not be modified:
+
 - `Jenkinsfile`
 - `Jenkinsfile.ci`
 - `Jenkinsfile.deploy`
-- `helm_chart/` (entire directory and all contents)
+- `helm_chart/`
 
-These files are managed by the DevOps team and any changes could break the CI/CD pipeline or deployment process.
+These assets are managed by the DevOps team, and changes may affect the CI/CD pipeline or deployment process.
 
 ## Notes
 
-- The system uses a sequential process by default
-- Hierarchical process is available as an alternative
-- All agents share the same LLM configuration
-- Knowledge sources can be added to enhance agent capabilities
-- The system supports training, testing, and replay functionality for iterative improvement
+- The workflow uses a deterministic sequential process
+- All stages share the same LLM configuration
+- Knowledge sources can enhance research quality
+- Training, testing, and replay workflows are supported
+- Research stages may invoke tools or retrieval when required

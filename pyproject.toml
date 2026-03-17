@@ -1,29 +1,46 @@
 [project]
 name = "latest-ai-development"
 version = "0.1.0"
-description = "latest-ai-development using crewAI LangChain"
+description = "LangChain workflow template for automated research and report generation"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
+
 dependencies = [
   "langchain>=0.3.20",
+  "langchain-core>=0.3.40",
   "langchain-openai>=0.3.8",
   "langchain-community>=0.3.19",
   "langchain-ollama>=0.2.3",
-  "pydantic>=2.10.6",
-  "pydantic-settings>=2.7.1",
-  "python-dotenv>=1.0.1",
-  "PyYAML>=6.0.2",
+
   "fastapi>=0.115.8",
   "uvicorn>=0.34.0",
-  "boto3>=1.37.0"
+
+  "pydantic>=2.10.6",
+  "pydantic-settings>=2.7.1",
+
+  "python-dotenv>=1.0.1",
+  "PyYAML>=6.0.2",
+
+  "boto3>=1.37.0",
+
+  # Useful for API tools / external integrations
+  "httpx>=0.27.0",
+
+  # Compatibility utilities
+  "typing-extensions>=4.12.0"
 ]
 
 [project.optional-dependencies]
+
 dev = [
   "pytest>=8.3.4",
   "pytest-cov>=6.0.0",
   "ruff>=0.9.7",
   "mypy>=1.15.0"
+]
+
+observability = [
+  "langsmith>=0.1.0"
 ]
 
 [project.scripts]
