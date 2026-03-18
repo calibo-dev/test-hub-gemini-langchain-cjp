@@ -1,12 +1,3 @@
-import groovy.json.JsonSlurper
-import java.security.*
-
-def parseJson(jsonString) {
-    def lazyMap = new JsonSlurper().parseText(jsonString)
-    def m = [:]
-    m.putAll(lazyMap)
-    return m
-}
 def parseJsonArray(jsonString){
     def datas = readJSON text: jsonString
     return datas
@@ -38,7 +29,7 @@ def pushToCollector() {
     def job_name = env.JOB_NAME
     def job_base_name = env.JOB_BASE_NAME
     String metaDataProperties = parseJsonString(env.JENKINS_METADATA, 'general')
-    metadataVars = parseJsonArray(metaDataProperties)
+    def metadataVars = parseJsonArray(metaDataProperties)
 
     if (metadataVars.tenant != '' && metadataVars.lazsaDomainUri != '') {
         withEnv([ "TENANT=${metadataVars.tenant}", "DOMAIN=${metadataVars.lazsaDomainUri}", "AGENT_ID=${metadataVars.agentId}",
@@ -65,22 +56,12 @@ pipeline {
     environment {
 
         DEFAULT_STAGE_SEQ = "'Initialization','Build','UnitTests','SonarQubeScan','BuildContainerImage','containerImageScan','artifactPublish','PublishContainerImage'"
-        BRANCHES = "${env.GIT_BRANCH}"
-        COMMIT = "${env.GIT_COMMIT}"
-        SERVICE_PORT = "${APP_PORT}"
-        ACTION = "${ACTION}"
-        DEPLOYMENT_TYPE = "${DEPLOYMENT_TYPE == ""? "EC2":DEPLOYMENT_TYPE}"
-
-        CHROME_BIN = "/usr/bin/google-chrome"
 
         JENKINS_METADATA = "${JENKINS_METADATA}"
 
-        PYTHON_IMAGE_VERSION = "python:3.13.0-slim" //https://hub.docker.com/_/python/tags
-        KUBECTL_IMAGE_VERSION = "public.ecr.aws/lazsa/kubectl:latest" //https://hub.docker.com/r/bitnami/kubectl/tags
-        HELM_IMAGE_VERSION = "alpine/helm:4" //https://hub.docker.com/r/alpine/helm/tags
-        OC_IMAGE_VERSION = "quay.io/openshift/origin-cli:4.9.0" //https://quay.io/repository/openshift/origin-cli?tab=tags
+        PYTHON_IMAGE_VERSION = "python:3.12-slim" //https://hub.docker.com/_/python/tags
         JFROGCLI_IMAGE_VERSION = "public.ecr.aws/lazsa/gradle-jf:jdk21"
-
+        SONAR_IMAGE_VERSION = "sonarsource/sonar-scanner-cli:11.0"  // SonarQube scanner version
     }
     stages {
         stage('Initialization') {
@@ -114,8 +95,8 @@ pipeline {
                     env.BUILD_TAG = "${BUILD_NUMBER}"
 
                     if(metadataVars.containerScanMetadata){
-                        containerScanPathMetadata = parseJsonString(repoProperties,'containerScanMetadata')
-                        containerScanPathVars = parseJsonArray(containerScanPathMetadata)
+                        def containerScanPathMetadata = parseJsonString(repoProperties,'containerScanMetadata')
+                        def containerScanPathVars = parseJsonArray(containerScanPathMetadata)
                         env.SNYK_PROJECTNAME = containerScanPathVars.projectName
                         env.SNYK_SEVERITY = containerScanPathVars.severity
                         env.SNYK_ORGANIZATION = containerScanPathVars.snykOrg
@@ -127,19 +108,19 @@ pipeline {
                     else{
                         env.SNYK_CONTINUE_ON_ERROR=false
                     }
-
+                   def stage_flag
                    if (env.STAGE_FLAG != 'null' && env.STAGE_FLAG != null) {
-                       stage_flag = parseJson("$env.STAGE_FLAG")
+                       stage_flag = parseJsonArray("$env.STAGE_FLAG")
                    } else {
-                       stage_flag = parseJson('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
+                       stage_flag = parseJsonArray('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
                    }
                    if (!stage_flag) {
-                       stage_flag = parseJson('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
+                       stage_flag = parseJsonArray('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
                    }
 
                    if (env.ARTIFACTORY == "ECR") {
                        def url_string = "$REGISTRY_URL"
-                       url = url_string.split('\\.')
+                       def url = url_string.split('\\.')
                        env.AWS_ACCOUNT_NUMBER = url[0]
                        env.ECR_REGION = url[3]
                        echo "ecr region: $ECR_REGION"
@@ -147,12 +128,12 @@ pipeline {
 
                    } else if (env.ARTIFACTORY == "ACR") {
                        def url_string = "$REGISTRY_URL"
-                       url = url_string.split('/')
+                       def url = url_string.split('/')
                        env.ACR_LOGIN_URL = url[0]
                        echo "Reg Login url: $ACR_LOGIN_URL"
                    }  else if (env.ARTIFACTORY == "JFROG") {
                        def url_string = "$REGISTRY_URL"
-                       url = url_string.split('/')
+                       def url = url_string.split('/')
                        env.JFROG_LOGIN_URL = url[0]
                        echo "Reg Login url: $JFROG_LOGIN_URL"
                    }
@@ -166,24 +147,36 @@ pipeline {
                         print(list[i])
                         if ("${list[i]}" == "'UnitTests'") {
                             stage('Unit Tests') {
-                                sh 'docker run --rm -v "$WORKSPACE":/app -w /app $PYTHON_IMAGE_VERSION /bin/sh unitTest.sh'
+                                sh ''' docker run -v "$WORKSPACE":/app -w /app $PYTHON_IMAGE_VERSION /bin/sh -c "pip install uv && uv sync --extra dev && uv run pytest"'''
                             }
                         }
                         else if ("${list[i]}" == "'SonarQubeScan'" && stage_flag['sonarScan']) {
                             stage('SonarQube Scan ') {
                                 // stage details here
-                                 env.sonar_org = "${metadataVars.sonarOrg}"
-                                 env.sonar_project_key = "${metadataVars.sonarProjectKey}"
-                                 env.sonar_host = "${metadataVars.sonarHost}"
+                                 env.SONAR_ORG = "${metadataVars.sonarOrg}"
+                                 env.SONAR_PROJECT_KEY = "${metadataVars.sonarProjectKey}"
+                                 env.SONAR_HOST = "${metadataVars.sonarHost}"
 
                                  if (env.SONAR_CREDENTIAL_ID != null && env.SONAR_CREDENTIAL_ID != '') {
                                      withCredentials([usernamePassword(credentialsId: "$SONAR_CREDENTIAL_ID", usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                                       sh ''' docker run -v "$WORKSPACE":/app -w /app sonarsource/sonar-scanner-cli:11.0 -Dsonar.python.coverage.reportPaths=coverage.xml -Dsonar.python.xunit.reportPath=testreport.xml -Dsonar.projectKey="$sonar_project_key"  -Dsonar.sources=. -Dsonar.projectName="$sonar_project_key" -Dsonar.host.url="$sonar_host" -Dsonar.organization="$sonar_org" -Dsonar.login=$PASSWORD -Dsonar.token=$PASSWORD '''
-                                     }
-                                 }
-                                 else{
-                                     withSonarQubeEnv('pg-sonar') {
-                                         sh ''' docker run -v "$WORKSPACE":/app -w /app sonarsource/sonar-scanner-cli:11.0 -Dsonar.python.coverage.reportPaths=coverage.xml -Dsonar.python.xunit.reportPath=testreport.xml -Dsonar.projectKey="$sonar_project_key"  -Dsonar.sources=. -Dsonar.projectName="$sonar_project_key" -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.organization="$sonar_org" -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.token=$SONAR_AUTH_TOKEN '''
+                                       sh '''
+                                            docker run \
+                                            -e SONAR_TOKEN="$PASSWORD" \
+                                            -v "$WORKSPACE":/app \
+                                            -w /app \
+                                            $SONAR_IMAGE_VERSION \
+                                            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+                                            -Dsonar.projectName="$SONAR_PROJECT_KEY" \
+                                            -Dsonar.host.url="$SONAR_HOST" \
+                                            -Dsonar.organization="$SONAR_ORG" \
+                                            -Dsonar.sources=src \
+                                            -Dsonar.tests=tests \
+                                            -Dsonar.exclusions=helm_chart/** \
+                                            -Dsonar.python.version=3.12 \
+                                            -Dsonar.python.coverage.reportPaths=coverage.xml \
+                                            -Dsonar.python.xunit.reportPath=testreport.xml \
+                                            -Dsonar.coverage.jacoco.xmlReportPaths= \
+                                            '''
                                      }
                                  }
                             }
@@ -204,10 +197,10 @@ pipeline {
                                           sh 'set +x; AWS_ACCESS_KEY_ID=$USERNAME AWS_SECRET_ACCESS_KEY=$PASSWORD aws ecr get-login-password --region "$ECR_REGION" | docker login --username AWS --password-stdin $REGISTRY_URL ;set -x'
                                       }
                                       if (env.ARTIFACTORY == 'JFROG') {
-                                          sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$REGISTRY_URL"'
+                                          sh 'set +x; echo "$PASSWORD" | docker login "$REGISTRY_URL" -u "$USERNAME" --password-stdin; set -x'
                                       }
                                       if (env.ARTIFACTORY == 'ACR') {
-                                          sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$ACR_LOGIN_URL"'
+                                          sh 'set +x; echo "$PASSWORD" | docker login "$ACR_LOGIN_URL" -u "$USERNAME" --password-stdin; set -x'
                                       }
                                    } */
                                    sh 'docker build -t "$REGISTRY_URL:$BUILD_TAG" -t "$REGISTRY_URL:latest" .'
@@ -261,10 +254,10 @@ pipeline {
                                             sh 'set +x; AWS_ACCESS_KEY_ID=$USERNAME AWS_SECRET_ACCESS_KEY=$PASSWORD aws ecr get-login-password --region "$ECR_REGION" | docker login --username AWS --password-stdin $REGISTRY_URL ;set -x'
                                         }
                                         if (env.ARTIFACTORY == 'JFROG') {
-                                            sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$REGISTRY_URL"'
+                                            sh 'set +x; echo "$PASSWORD" | docker login "$REGISTRY_URL" -u "$USERNAME" --password-stdin; set -x'
                                         }
                                         if (env.ARTIFACTORY == 'ACR') {
-                                            sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$ACR_LOGIN_URL"'
+                                            sh 'set +x; echo "$PASSWORD" | docker login "$ACR_LOGIN_URL" -u "$USERNAME" --password-stdin; set -x'
                                         }
                                     }
 
@@ -283,7 +276,7 @@ pipeline {
                             pushToCollector()
                         }
                     }
-                    sh """ sudo chown -R `id -u`:`id -g` "$WORKSPACE"* """
+                    sh 'chown -R "$(id -u):$(id -g)" "$WORKSPACE"'
                 }
                 cleanup {
                     sh 'docker  rmi  $REGISTRY_URL:$BUILD_TAG $REGISTRY_URL:latest || true'

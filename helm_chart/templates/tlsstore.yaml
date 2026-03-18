@@ -6,5 +6,5 @@ metadata:
   namespace: traefik
 spec:
   defaultCertificate:
-    secretName: {{ .Values.ingress.tls.secretName }}
+    secretName: {{ .Values.ingress.traefik.tlsStore.secretName }}
 {{- end }}

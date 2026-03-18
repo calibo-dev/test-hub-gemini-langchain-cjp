@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy dependency files only
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies into the virtual environment without installing the project itself
-RUN uv sync --frozen --no-dev --no-install-project
+# Install dependencies (locked, reproducible)
+RUN uv sync --frozen --no-dev
 
 # ------------- Runtime Stage -------------
 FROM python:3.12-slim AS runtime
@@ -19,7 +19,7 @@ RUN apt-get update -y \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/* /var/tmp/*
 
-# Runtime environment
+# Runtime environment configuration
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/src \
@@ -27,7 +27,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     API_HOST=0.0.0.0 \
     PORT=8080 \
-    CONTEXT=/app/knowledge \
+    CONTEXT=/ \
     OUTPUT_DIR=/app/output \
     REPORT_OUTPUT_FILE=report.md
 
@@ -42,7 +42,10 @@ WORKDIR /app
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Use the virtual environment
+# Ensure venv is executable
+RUN chmod -R 755 /app/.venv
+
+# Activate venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application code and context files
@@ -53,7 +56,7 @@ COPY --chown=calibo:calibo knowledge ./knowledge
 RUN mkdir -p /app/output /app/.local /app/.cache \
     && chown -R calibo:calibo /app/output /app/.local /app/.cache
 
-# Set file permissions
+# Restrictive permissions
 RUN chmod 755 /app \
     && chmod -R 755 /app/src \
     && chmod -R 755 /app/knowledge \
@@ -72,7 +75,7 @@ RUN apt-get autoremove -y \
     && rm -rf /tmp/* \
     && rm -rf /var/tmp/*
 
-# Run as non-root
+# Run as non-root user
 USER calibo
 
 ENTRYPOINT ["tini", "--"]

@@ -55,9 +55,11 @@ spec:
 {{ toYaml .Values.securityContext | indent 12 }}
           env:
             - name: CONTEXT
-              value: {{ .Values.context | quote }}
+              value: {{ .Values.context }}
             - name: PORT
               value: "{{ .Values.service.internalport }}"
+            - name: GUNICORN_CMD_ARGS
+              value: "--bind=0.0.0.0:{{ .Values.service.internalport }}"
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

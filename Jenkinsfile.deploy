@@ -1,13 +1,5 @@
-import groovy.json.JsonSlurper
-import groovy.json.JsonSlurper
-import java.security.*
+def metadataVars
 
-def parseJson(jsonString) {
-    def lazyMap = new JsonSlurper().parseText(jsonString)
-    def m = [:]
-    m.putAll(lazyMap)
-    return m
-}
 def parseJsonArray(jsonString){
     def datas = readJSON text: jsonString
     return datas
@@ -72,7 +64,7 @@ def pushToCollector() {
     def job_name = env.JOB_NAME
     def job_base_name = env.JOB_BASE_NAME
     String metaDataProperties = parseJsonString(env.JENKINS_METADATA, 'general')
-    metadataVars = parseJsonArray(metaDataProperties)
+    def metadataVars = parseJsonArray(metaDataProperties)
 
     if (metadataVars.tenant != '' && metadataVars.lazsaDomainUri != '') {
         withEnv([ "TENANT=${metadataVars.tenant}", "DOMAIN=${metadataVars.lazsaDomainUri}", "AGENT_ID=${metadataVars.agentId}",
@@ -90,8 +82,6 @@ def pushToCollector() {
 
 
 def returnVaultConfig(vaultURL,vaultCredID){
-    echo vaultURL
-    echo vaultCredID
     def configurationVault = [:]
     //configurationVault["vaultUrl"] = vaultURL
     configurationVault["vaultCredentialId"] = vaultCredID
@@ -120,9 +110,9 @@ def checkoutRepository() {
 def getApplicationUrl(){
   def host
   if (env.DEPLOYMENT_TYPE == 'KUBERNETES'){
-    kubernetesJsonString = parseJsonString(env.JENKINS_METADATA,'kubernetes')
-    ingressJsonString = parseJsonString(kubernetesJsonString,'ingress')
-    ingress = parseJsonArray(ingressJsonString)
+    def kubernetesJsonString = parseJsonString(env.JENKINS_METADATA,'kubernetes')
+    def ingressJsonString = parseJsonString(kubernetesJsonString,'ingress')
+    def ingress = parseJsonArray(ingressJsonString)
     if(ingress['hosts']){
       hostname = ingress.hosts[0]
       print("hostname:"+hostname)
@@ -134,8 +124,8 @@ def getApplicationUrl(){
     print("host in kubernetes:"+host)
   }
   else if(env.DEPLOYMENT_TYPE == 'EC2') {
-    dockerProperties = parseJsonString(env.JENKINS_METADATA, 'docker')
-    dockerData = parseJsonArray(dockerProperties)
+    def dockerProperties = parseJsonString(env.JENKINS_METADATA, 'docker')
+    def dockerData = parseJsonArray(dockerProperties)
     host = DOCKERHOST+':'+dockerData.hostPort
     print("host in ec2:"+host)
   }
@@ -184,7 +174,7 @@ def runCypressTest() {
 
   EOL
   """
-  sh 'docker run -v "$WORKSPACE"/testcaseRepo:/app -w /app cypress/browsers:node14.19.0-chrome100-ff99-edge /bin/sh test.sh > test.out || true'
+  sh 'docker run -v "$WORKSPACE"/testcaseRepo:/app -w /app cypress/browsers:node20.11.0-chrome120-ff120-edge /bin/sh test.sh > test.out || true'
   sh 'cat test.out'
   sh """
  awk 'BEGIN { for(i=1;i<=5;i++) printf "*+"; } /(^[ ]*✖.+(failed|pended|pending|skipped|skipping)|^[ ]*✔[ ]+All specs passed).+/ {for(i=4;i>=0;i--) switch (i) {case 4: if( \$(NF-i) ~ /^[0-9]/ ){printf aggr "Tests run: "\$(NF-i) aggr ", ";} else{printf "Tests run: 0, " ;}  break; case 3: if( \$(NF-i) ~ /^[0-9]/ ){printf aggr "Passed: "\$(NF-i) aggr ", "} else{printf "Passed: 0, "} break; case 2: if( \$(NF-i) ~ /^[0-9]/ ){printf aggr "Failures: " \$(NF-i) aggr ", "} else{printf "Failures: 0, "}  break; case 1: if( \$(NF-i) ~ /^[0-9]/ ){printf aggr "Pending: " \$(NF-i) aggr ", "} else{printf "Pending: 0, "} break; case 0: if( \$(NF-i) ~ /^[0-9]/ ){printf aggr "Skipped: " \$(NF-i)} else{printf "Skipped: 0"} break; }} END { for(i=1;i<=5;i++) printf "*+"; }' test.out
@@ -219,12 +209,10 @@ pipeline {
 
         DEFAULT_STAGE_SEQ = "'Initialization','ArtifactPromotion','Deploy','FunctionalTests','Destroy'"
 
-        BRANCHES = "${env.GIT_BRANCH}"
-        COMMIT = "${env.GIT_COMMIT}"
         SERVICE_PORT = "${APP_PORT}"
         ACTION = "${ACTION}"
         DEPLOYMENT_TYPE = "${DEPLOYMENT_TYPE == ""? "EC2":DEPLOYMENT_TYPE}"
-        CHROME_BIN = "/usr/bin/google-chrome"
+
         JENKINS_METADATA = "${JENKINS_METADATA}"
 
         KUBECTL_IMAGE_VERSION = "public.ecr.aws/lazsa/kubectl:latest" //https://hub.docker.com/r/bitnami/kubectl/tags
@@ -280,16 +268,18 @@ pipeline {
                     } else {
                         env.BUILD_TAG = metadataVars.containerImageTag
                     }
-
+                    def stage_flag
                     if (env.STAGE_FLAG != 'null' && env.STAGE_FLAG != null) {
-                        stage_flag = parseJson("$env.STAGE_FLAG")
+                        stage_flag = parseJsonArray("$env.STAGE_FLAG")
                     } else {
-                        stage_flag = parseJson('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
+                        stage_flag = parseJsonArray('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
                     }
                     if (!stage_flag) {
-                       stage_flag = parseJson('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
+                       stage_flag = parseJsonArray('{"qualysScan": false, "sonarScan": true, "zapScan": false, "rapid7Scan": false, "sysdig": false, "FunctionalTesting": false}')
                     }
 
+                    def helmVars = [:]
+                    def kubeVars = [:]
                     if (env.DEPLOYMENT_TYPE == 'KUBERNETES' || env.DEPLOYMENT_TYPE == 'OPENSHIFT') {
                         String kubeProperties = parseJsonString(env.JENKINS_METADATA,'kubernetes')
                         String helmProperties = parseJsonString(env.JENKINS_METADATA,'helm')
@@ -332,7 +322,7 @@ pipeline {
 
                if (env.ARTIFACTORY == "ECR") {
                    def url_string = "$REGISTRY_URL"
-                   url = url_string.split('\\.')
+                   def url = url_string.split('\\.')
                    env.AWS_ACCOUNT_NUMBER = url[0]
                    env.ECR_REGION = url[3]
                    echo "ecr region: $ECR_REGION"
@@ -340,12 +330,12 @@ pipeline {
 
                } else if (env.ARTIFACTORY == "ACR") {
                    def url_string = "$REGISTRY_URL"
-                   url = url_string.split('/')
+                   def url = url_string.split('/')
                    env.ACR_LOGIN_URL = url[0]
                    echo "Reg Login url: $ACR_LOGIN_URL"
                }  else if (env.ARTIFACTORY == "JFROG") {
                    def url_string = "$REGISTRY_URL"
-                   url = url_string.split('/')
+                   def url = url_string.split('/')
                    env.JFROG_LOGIN_URL = url[0]
                    echo "Reg Login url: $JFROG_LOGIN_URL"
                }
@@ -365,10 +355,10 @@ pipeline {
                                         sh 'set +x; AWS_ACCESS_KEY_ID=$USERNAME AWS_SECRET_ACCESS_KEY=$PASSWORD aws ecr get-login-password --region "$ECR_REGION" | docker login --username AWS --password-stdin $REGISTRY_URL ;set -x'
                                     }
                                     if (env.ARTIFACTORY == 'JFROG') {
-                                        sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$REGISTRY_URL"'
+                                        sh 'set +x; echo "$PASSWORD" | docker login "$REGISTRY_URL" -u "$USERNAME" --password-stdin; set -x'
                                     }
                                     if (env.ARTIFACTORY == 'ACR') {
-                                        sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$ACR_LOGIN_URL"'
+                                        sh 'set +x; echo "$PASSWORD" | docker login "$ACR_LOGIN_URL" -u "$USERNAME" --password-stdin; set -x'
                                     }
                                 }
                                 def registry_url_string = "${metadataVars.promoteSource}"
@@ -384,13 +374,13 @@ pipeline {
                                     }
                                     if ("${metadataVars.promoteSourceArtifactoryType}" == 'JFROG') {
                                        temp_url = registry_url_string.split(':')
-                                       env.PROMOTE_SOURCE_ACR_LOGIN_URL = temp_url[0]
-                                       sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$PROMOTE_SOURCE_ACR_LOGIN_URL"'
+                                       env.PROMOTE_SOURCE_JFROG_LOGIN_URL = temp_url[0]
+                                       sh 'set +x; echo "$PASSWORD" | docker login "$PROMOTE_SOURCE_JFROG_LOGIN_URL" -u "$USERNAME" --password-stdin; set -x'
                                     }
                                     if ("${metadataVars.promoteSourceArtifactoryType}" == 'ACR') {
                                        temp_url = registry_url_string.split(':')
-                                       env.PROMOTE_SOURCE_JFROG_LOGIN_URL = temp_url[0]
-                                       sh 'docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$PROMOTE_SOURCE_JFROG_LOGIN_URL"'
+                                       env.PROMOTE_SOURCE_ACR_LOGIN_URL = temp_url[0]
+                                       sh 'set +x; echo "$PASSWORD" | docker login "$PROMOTE_SOURCE_ACR_LOGIN_URL" -u "$USERNAME" --password-stdin; set -x'
                                     }
                                 }
                                 sh """ docker pull "${metadataVars.promoteSource}" """
@@ -415,27 +405,23 @@ pipeline {
                                                 sh 'set +x; ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "AWS_ACCESS_KEY_ID=$USERNAME AWS_SECRET_ACCESS_KEY=$PASSWORD aws ecr get-login-password --region "$ECR_REGION" | docker login --username AWS --password-stdin $REGISTRY_URL " ;set -x'
                                             }
                                             if (env.ARTIFACTORY == 'JFROG') {
-                                                sh 'ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$REGISTRY_URL""'
+                                                sh 'set +x; ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$REGISTRY_URL""; set -x'
                                             }
                                             if (env.ARTIFACTORY == 'ACR') {
-                                                sh 'ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$ACR_LOGIN_URL""'
+                                                sh 'set +x; ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker login -u "\"$USERNAME\"" -p "\"$PASSWORD\"" "$ACR_LOGIN_URL""; set -x'
                                             }
                                         }
 
                                         sh 'ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "sleep 5s"'
-                                        sh 'ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker image prune -a -f"'
                                         sh 'ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker pull "$REGISTRY_URL:$BUILD_TAG""'
                                         sh """ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker stop "${metadataVars.repoName}" || true && docker rm "${metadataVars.repoName}" || true" """
                                             // Read Docker Vault properties
                                             String dockerProperties = parseJsonString(env.JENKINS_METADATA,'docker')
                                             dockerData = parseJsonArray(dockerProperties)
                                             if(dockerData['vault']){
-
                                                 String vaultProperties = parseJsonString(dockerProperties,'vault')
                                                 def vaultType = parseJsonArray(vaultProperties)
                                                 if (vaultType.type == 'vault') {
-                                                    echo "type is vault"
-                                                    env.VAULT_TYPE = 'vault'
                                                     String vaultConfiguration = parseJsonString(vaultProperties,'configuration')
                                                     def vaultData = parseJsonArray(vaultConfiguration)
                                                     def vaultConfigurations = returnVaultConfig(vaultData.vaultUrl, vaultData.vaultCredentialID)
@@ -455,11 +441,9 @@ pipeline {
                                                         }
                                                         for(keys in secretkeys){
                                                             env.keys = "$keys"
-                                                       sh '''set +x; echo ${keys}=\$(cat .${keys}) >> .${RELEASE_NAME} '''
+                                                        sh '''set +x; echo ${keys}=\$(cat .${keys}) >> .${RELEASE_NAME}; set -x '''
                                                         }
-                                                        sh '''set +x; cat .${RELEASE_NAME};'''
                                                     }
-                                                    // def result = sh(script: 'cat .${RELEASE_NAME}', returnStdout: true)
 
                                                     sh 'scp -o "StrictHostKeyChecking=no" .${RELEASE_NAME} ciuser@$DOCKERHOST:/home/ciuser/.${RELEASE_NAME}'
                                                     //sh 'ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "echo $SECRETS > secrets"'
@@ -489,7 +473,7 @@ pipeline {
                                             env.helmReleaseName = "${metadataVars.helmReleaseName}"
                                             sh '''
                                                  sed -i s+#SERVICE_NAME#+"$helmReleaseName"+g ./helm_chart/values.yaml ./helm_chart/Chart.yaml
-                                                 docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" $KUBECTL_IMAGE_VERSION create ns "$namespace_name" || true
+                                                 docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION create ns "$namespace_name" || true
                                             '''
                                             if (env.DEPLOYMENT_TYPE == 'OPENSHIFT') {
                                                 sh '''
@@ -501,21 +485,23 @@ pipeline {
                                                     else
                                                         ACCOUNT='default'
                                                     fi
-                                                    docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" -v "$WORKSPACE":/apps -w /apps $OC_IMAGE_VERSION oc adm policy add-scc-to-user anyuid -z $ACCOUNT -n "$namespace_name"
+                                                    docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" -v "$WORKSPACE":/apps -w /apps $OC_IMAGE_VERSION oc adm policy add-scc-to-user anyuid -z $ACCOUNT -n "$namespace_name"
                                                 '''
                                             }
 
                                            env.kube_secret_name_for_registry = "$ARTIFACTORY_CREDENTIALS".toLowerCase()
                                            if (env.ARTIFACTORY == 'JFROG') {
                                                sh '''
-                                               docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" $KUBECTL_IMAGE_VERSION -n "$namespace_name" delete secret $kube_secret_name_for_registry --ignore-not-found || true
-                                               docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" $KUBECTL_IMAGE_VERSION -n "$namespace_name" create secret docker-registry $kube_secret_name_for_registry --docker-server="$JFROG_LOGIN_URL" --docker-username="\"$USERNAME\"" --docker-password="\"$PASSWORD\"" || true
+                                                docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION -n "$namespace_name" delete secret $kube_secret_name_for_registry --ignore-not-found || true
+                                                docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION -n "$namespace_name" create secret docker-registry $kube_secret_name_for_registry --docker-server="$JFROG_LOGIN_URL" --docker-username="\"$USERNAME\"" --docker-password="\"$PASSWORD\"" || true
+
                                                '''
                                            }
                                            if (env.ARTIFACTORY == 'ACR') {
                                                sh '''
-                                                 docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" $KUBECTL_IMAGE_VERSION -n "$namespace_name" delete secret $kube_secret_name_for_registry --ignore-not-found || true
-                                                 docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" $KUBECTL_IMAGE_VERSION -n "$namespace_name" create secret docker-registry $kube_secret_name_for_registry --docker-server="$ACR_LOGIN_URL" --docker-username="\"$USERNAME\"" --docker-password="\"$PASSWORD\"" || true
+                                                docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION -n "$namespace_name" delete secret $kube_secret_name_for_registry --ignore-not-found || true
+                                                docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION -n "$namespace_name" create secret docker-registry $kube_secret_name_for_registry --docker-server="$ACR_LOGIN_URL" --docker-username="\"$USERNAME\"" --docker-password="\"$PASSWORD\"" || true
+                                                 
                                                '''
                                            }
                                            if (helmVars.helmRepoUrl != null && helmVars.helmRepoUrl != '') {
@@ -525,7 +511,7 @@ pipeline {
                                                   checkout([$class: 'GitSCM', branches: [[name: "${helmVars.helmRepoBranch}"]], userRemoteConfigs: [[url: "${helmVars.helmRepoUrl}", credentialsId: scm.userRemoteConfigs[0].credentialsId]]])
                                                   sh '''
                                                   ### Command for running External helm Chart
-                                                   docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" -v "$WORKSPACE":/apps -w /apps/externalChart $HELM_IMAGE_VERSION upgrade --install "$helmReleaseName" -n "$namespace_name" "$temp_workingDirectory" --rollback-on-failure --timeout 300s --set image.repository="$REGISTRY_URL" --set image.tag="$BUILD_TAG" --set image.registrySecret="$kube_secret_name_for_registry"  --set service.internalport="$SERVICE_PORT" --set context="$CONTEXT" -f "$helmvalues" -f ../vault.yaml
+                                                   docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" -v "$WORKSPACE":/apps -w /apps/externalChart $HELM_IMAGE_VERSION upgrade --install "$helmReleaseName" -n "$namespace_name" "$temp_workingDirectory" --rollback-on-failure --timeout 300s --set image.repository="$REGISTRY_URL" --set image.tag="$BUILD_TAG" --set image.registrySecret="$kube_secret_name_for_registry"  --set service.internalport="$SERVICE_PORT" --set context="$CONTEXT" -f "$helmvalues" -f ../vault.yaml
                                                   '''
 
                                               }
@@ -536,7 +522,7 @@ pipeline {
                                                echo "context: $CONTEXT" >> Helm.yaml
                                                cat Helm.yaml
                                                sed -i s+#SERVICE_NAME#+"$helmReleaseName"+g ./helm_chart/values.yaml ./helm_chart/Chart.yaml
-                                               docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" -v "$WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION upgrade --install "$helmReleaseName" -n "$namespace_name" helm_chart --rollback-on-failure --timeout 300s --set image.repository="$REGISTRY_URL" --set image.tag="$BUILD_TAG" --set image.registrySecret="$kube_secret_name_for_registry"  --set service.internalport="$SERVICE_PORT" -f Helm.yaml
+                                               docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" -v "$WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION upgrade --install "$helmReleaseName" -n "$namespace_name" helm_chart --rollback-on-failure --timeout 300s --set image.repository="$REGISTRY_URL" --set image.tag="$BUILD_TAG" --set image.registrySecret="$kube_secret_name_for_registry"  --set service.internalport="$SERVICE_PORT" -f Helm.yaml
                                                '''
                                            }
                                         }
@@ -569,7 +555,7 @@ pipeline {
                                     withCredentials([file(credentialsId: "$KUBE_SECRET", variable: 'KUBECONFIG')]) {
                                       env.helmReleaseName = "${metadataVars.helmReleaseName}"
                                       sh '''
-                                      docker run --rm  --user root -v "$KUBECONFIG":"$KUBECONFIG" -e KUBECONFIG="$KUBECONFIG" -v "$WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION uninstall "$helmReleaseName" -n "$namespace_name"
+                                      docker run --rm  --user "$(id -u):$(id -g)" -v "$KUBECONFIG":"/.kube/config":ro -e KUBECONFIG="/.kube/config" -v "$WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION uninstall "$helmReleaseName" -n "$namespace_name"
                                       '''
                                     }
                                 }
@@ -585,10 +571,11 @@ pipeline {
                             pushToCollector()
                         }
                     }
-                    sh """ sudo chown -R `id -u`:`id -g` "$WORKSPACE"* """
+                    sh 'chown -R "$(id -u):$(id -g)" "$WORKSPACE"'
                 }
                 cleanup {
                     sh 'docker  rmi  $REGISTRY_URL:$BUILD_TAG $REGISTRY_URL:latest || true'
+                    sh 'rm -rf .${RELEASE_NAME}'
                 }
             }
         }

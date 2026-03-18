@@ -1,10 +1,10 @@
 replicaCount: 1
 
 image:
-  repository: nginx
-  tag: latest
+  repository: REGISTRY_URL
+  tag: BUILD_ID
   pullPolicy: IfNotPresent
-  #registrySecret: REGISTRY_SECRET_ID
+  registrySecret: REGISTRY_SECRET_ID
 
 nameOverride: #SERVICE_NAME#
 fullnameOverride: ""
@@ -30,7 +30,7 @@ ingress:
     secretName: REPLACE_WITH_YOUR_SECRET_NAME
   #annotations:
   paths:
-    path: /calibo
+    path: /RELEASE_NAME
   albAnnotations:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
     alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=600
@@ -47,6 +47,7 @@ ingress:
   traefik: 
     tlsStore:
       enabled: false
+      secretName: REPLACE_WITH_YOUR_SECRET_NAME
     middleware:
       enabled: false
       definitions:
@@ -54,7 +55,7 @@ ingress:
           spec:
             stripPrefix:
               prefixes:
-                - /calibo
+                - /RELEASE_NAME
         security-headers:
           spec:
             headers:
@@ -72,13 +73,12 @@ ingress:
         - security-headers
 
 
-
 context: CONTEXT_PATH
 serviceAccountName: default
 mountServiceAccountToken: false
 
 securityContext:
-  runAsUser: 10001
+  runAsUser: 1001
   runAsNonRoot: true
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
@@ -176,26 +176,26 @@ extraPorts: ''
 
 probes:
   livenessProbe: ''
-#    failureThreshold: 10
-#    httpGet:
-#      path: /iui
-#      port: 8021
-#      scheme: HTTP
-#    initialDelaySeconds: 40
-#    periodSeconds: 5
-#    successThreshold: 1
-#    timeoutSeconds: 10
+  #  failureThreshold: 10
+  #  httpGet:
+  #    path: /healthz
+  #    port: 8080
+  #    scheme: HTTP
+  #  initialDelaySeconds: 40
+  #  periodSeconds: 5
+  #  successThreshold: 1
+  #  timeoutSeconds: 10
 #
   readinessProbe: ''
-#    failureThreshold: 10
-#    httpGet:
-#      path: /iui
-#      port: 8021
-#      scheme: HTTP
-#    initialDelaySeconds: 40
-#    periodSeconds: 5
-#    successThreshold: 1
-#    timeoutSeconds: 10
+  #  failureThreshold: 10
+  #  httpGet:
+  #    path: /readyz
+  #    port: 8080
+  #    scheme: HTTP
+  #  initialDelaySeconds: 40
+  #  periodSeconds: 5
+  #  successThreshold: 1
+  #  timeoutSeconds: 10
 #
   startupProbe: ''
 #    httpGet:
@@ -207,13 +207,13 @@ probes:
 #    periodSeconds: 5
 
 volumes:
-  enabled: false
+ enabled: false
 # data:
 # - name: efs-pvc-2
 #   persistentVolumeClaim:
 #    claimName: efs
-  mounts:
-    enabled: false
+ mounts:
+   enabled: false
 #   data:
 #     - mountPath: "/var/www/html0"
 #       name: efs-pvc-2
