@@ -95,7 +95,7 @@ pipeline {
                     env.BUILD_TAG = "${BUILD_NUMBER}"
 
                     if(metadataVars.containerScanMetadata){
-                        def containerScanPathMetadata = parseJsonString(repoProperties,'containerScanMetadata')
+                        def containerScanPathMetadata = parseJsonString(metaDataProperties,'containerScanMetadata')
                         def containerScanPathVars = parseJsonArray(containerScanPathMetadata)
                         env.SNYK_PROJECTNAME = containerScanPathVars.projectName
                         env.SNYK_SEVERITY = containerScanPathVars.severity
