@@ -4,8 +4,8 @@
 .gitattributes
 
 # Documentation
-README.md
-*.md
+#README.md
+#*.md
 docs/
 CHANGELOG.md
 LICENSE*
