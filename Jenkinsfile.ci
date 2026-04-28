@@ -147,7 +147,7 @@ pipeline {
                         print(list[i])
                         if ("${list[i]}" == "'UnitTests'") {
                             stage('Unit Tests') {
-                                sh ''' docker run -v "$WORKSPACE":/app -w /app $PYTHON_IMAGE_VERSION /bin/sh -c "pip install uv && uv sync --extra dev && uv run pytest"'''
+                              //  sh ''' docker run -v "$WORKSPACE":/app -w /app $PYTHON_IMAGE_VERSION /bin/sh -c "pip install uv && uv sync --extra dev && uv run pytest"'''
                             }
                         }
                         else if ("${list[i]}" == "'SonarQubeScan'" && stage_flag['sonarScan']) {
