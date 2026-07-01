@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -9,7 +8,6 @@ from pydantic import BaseModel
 from latest_ai_development.config.settings import get_settings
 from latest_ai_development.config.validators import validate_configuration
 from latest_ai_development.workflow import LatestAiDevelopmentWorkflow
-
 
 # Load settings
 settings = get_settings()
@@ -26,7 +24,7 @@ app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="LangChain workflow for automated research and report generation",
-    root_path=f"/{settings.context}",
+    root_path=settings.api_root_path,
 )
 
 
@@ -35,7 +33,7 @@ class AskRequest(BaseModel):
 
 
 @app.get("/health")
-def health() -> Dict[str, str]:
+def health() -> dict[str, str]:
     """
     Health check endpoint.
     """
@@ -43,7 +41,7 @@ def health() -> Dict[str, str]:
 
 
 @app.post("/ask")
-def ask(request: AskRequest) -> Dict[str, str]:
+def ask(request: AskRequest) -> dict[str, str]:
     """
     Execute the research + reporting workflow.
     """
@@ -72,3 +70,7 @@ def run() -> None:
         port=settings.port,
         reload=settings.debug,
     )
+
+
+if __name__ == "__main__":
+    run()

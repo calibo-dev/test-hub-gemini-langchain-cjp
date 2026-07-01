@@ -4,6 +4,9 @@ import base64
 import json
 import os
 from functools import lru_cache
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError

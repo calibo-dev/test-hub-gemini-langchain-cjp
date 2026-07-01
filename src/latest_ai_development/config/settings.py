@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
-from functools import lru_cache
 
 import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parents[3]
@@ -43,7 +42,8 @@ class Settings(BaseSettings):
 
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
-    port: int = Field(default=8080, alias="PORT")
+    api_root_path: str = Field(default="", alias="API_ROOT_PATH")
+    port: int = Field(default=8082, alias="PORT")
 
     # AWS
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
