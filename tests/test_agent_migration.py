@@ -162,11 +162,21 @@ def test_workflow_does_not_write_report_when_save_output_disabled(monkeypatch, t
     assert not settings.report_output_path.exists()
 
 
-def test_fastapi_root_path_uses_api_root_path_not_context(monkeypatch, tmp_path):
+def test_normalize_api_context_matches_crewai_behavior():
+    from latest_ai_development.config.settings import normalize_api_context
+
+    assert normalize_api_context(None) == ""
+    assert normalize_api_context("") == ""
+    assert normalize_api_context("/") == ""
+    assert normalize_api_context("testing") == "/testing"
+    assert normalize_api_context("/testing/") == "/testing"
+
+
+def test_fastapi_root_path_uses_context_prefix(monkeypatch):
     from latest_ai_development.config import settings as settings_module
 
     monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.setenv("CONTEXT", str(tmp_path / "knowledge"))
+    monkeypatch.setenv("CONTEXT", "testing")
     monkeypatch.setenv("API_ROOT_PATH", "")
 
     settings_module.get_settings.cache_clear()
@@ -179,8 +189,34 @@ def test_fastapi_root_path_uses_api_root_path_not_context(monkeypatch, tmp_path)
     else:
         main = importlib.import_module("latest_ai_development.main")
 
-    assert main.settings.context == str(tmp_path / "knowledge")
-    assert main.app.root_path == ""
+    route_paths = {getattr(route, "path", "") for route in main.app.routes}
+
+    assert main.settings.context == "testing"
+    assert main.API_ROOT_PATH == "/testing"
+    assert main.app.root_path == "/testing"
+    assert "/testing/health" in route_paths
+    assert "/testing/ask" in route_paths
+
+
+def test_fastapi_api_root_path_overrides_context(monkeypatch):
+    from latest_ai_development.config import settings as settings_module
+
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("CONTEXT", "/context")
+    monkeypatch.setenv("API_ROOT_PATH", "/api-root")
+
+    settings_module.get_settings.cache_clear()
+    settings_module.get_workflow_config.cache_clear()
+    settings_module.get_stages_config.cache_clear()
+    settings_module.get_models_config.cache_clear()
+
+    if "latest_ai_development.main" in sys.modules:
+        main = importlib.reload(sys.modules["latest_ai_development.main"])
+    else:
+        main = importlib.import_module("latest_ai_development.main")
+
+    assert main.API_ROOT_PATH == "/api-root"
+    assert main.app.root_path == "/api-root"
 
 
 def test_ask_keeps_public_response_shape(monkeypatch):
@@ -200,3 +236,17 @@ def test_ask_keeps_public_response_shape(monkeypatch):
     response = main.ask(main.AskRequest(topic="AI agents"))
 
     assert response == {"topic": "AI agents", "report": "api report"}
+
+
+def test_runtime_dirs_do_not_create_context_path(tmp_path):
+    from latest_ai_development.config.settings import ensure_runtime_dirs
+
+    settings = SimpleNamespace(
+        context_path=tmp_path / "external-context",
+        output_dir_path=tmp_path / "output",
+    )
+
+    ensure_runtime_dirs(settings)
+
+    assert not settings.context_path.exists()
+    assert settings.output_dir_path.is_dir()
