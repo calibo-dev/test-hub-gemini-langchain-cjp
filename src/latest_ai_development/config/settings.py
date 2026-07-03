@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_root_path: str = Field(default="", alias="API_ROOT_PATH")
-    port: int = Field(default=8080, alias="PORT")
+    port: int = Field(default=8089, alias="PORT")
 
     # AWS
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
@@ -100,7 +100,7 @@ class Settings(BaseSettings):
 
 # Runtime helpers
 def ensure_runtime_dirs(settings: Settings) -> None:
-    settings.context_path.mkdir(parents=True, exist_ok=True)
+    # settings.context_path.mkdir(parents=True, exist_ok=True)
     settings.output_dir_path.mkdir(parents=True, exist_ok=True)
 
 
