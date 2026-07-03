@@ -16,6 +16,18 @@ DEFAULT_OUTPUT_DIR = BASE_DIR / "output"
 DEFAULT_CONTEXT_DIR = BASE_DIR / "knowledge"
 
 
+def normalize_api_context(raw_context: str | None) -> str:
+    """Return a stable URL prefix like '/testing' or ''."""
+    if not raw_context:
+        return ""
+
+    normalized = raw_context.strip()
+    if not normalized or normalized == "/":
+        return ""
+
+    return "/" + normalized.strip("/")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -43,13 +55,13 @@ class Settings(BaseSettings):
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_root_path: str = Field(default="", alias="API_ROOT_PATH")
-    port: int = Field(default=8082, alias="PORT")
+    port: int = Field(default=8080, alias="PORT")
 
     # AWS
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
 
     # Context / Knowledge
-    context: str = Field(default=str(DEFAULT_CONTEXT_DIR), alias="CONTEXT")
+    context: str = Field(default="/", alias="CONTEXT")
 
     # Output
     report_output_file: str = Field(default="report.md", alias="REPORT_OUTPUT_FILE")
@@ -59,6 +71,10 @@ class Settings(BaseSettings):
     @property
     def context_path(self) -> Path:
         return Path(self.context).expanduser()
+
+    @property
+    def normalized_api_root_path(self) -> str:
+        return normalize_api_context(self.api_root_path or self.context)
 
     @property
     def output_dir_path(self) -> Path:

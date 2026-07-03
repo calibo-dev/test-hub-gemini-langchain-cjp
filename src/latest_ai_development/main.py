@@ -18,13 +18,15 @@ validate_configuration()
 # Initialize workflow controller
 workflow = LatestAiDevelopmentWorkflow()
 
+API_ROOT_PATH = settings.normalized_api_root_path
+
 
 # Initialize FastAPI application
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="LangChain workflow for automated research and report generation",
-    root_path=settings.api_root_path,
+    root_path=API_ROOT_PATH,
 )
 
 
@@ -58,6 +60,21 @@ def ask(request: AskRequest) -> dict[str, str]:
         "topic": result.get("topic"),
         "report": result.get("report"),
     }
+
+
+if API_ROOT_PATH:
+    app.add_api_route(
+        f"{API_ROOT_PATH}/health",
+        health,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+    app.add_api_route(
+        f"{API_ROOT_PATH}/ask",
+        ask,
+        methods=["POST"],
+        include_in_schema=False,
+    )
 
 
 # CLI-compatible entrypoint
