@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     cloud_provider: str = Field(default="", alias="CLOUD_PROVIDER")
     azure_key_vault_url: str = Field(default="", alias="AZURE_KEY_VAULT_URL")
 
+    # Tracing / Observability
+    tracing_backend: str = Field(default="NONE", alias="TRACING_BACKEND")
+    langsmith_endpoint: str = Field(default="", alias="LANGSMITH_ENDPOINT")
+    langsmith_project: str = Field(default="", alias="LANGSMITH_PROJECT")
+    langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
+    langsmith_api_key_secret: str = Field(default="", alias="LANGSMITH_API_KEY_SECRET")
+
     # Ollama
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
 

@@ -187,6 +187,9 @@ A typical local setup for this LangChain template looks like:
 - Set `CLOUD_PROVIDER=AZURE` to retrieve secrets from Azure Key Vault.
 - When using AWS, configure `AWS_REGION` as needed.
 - When using Azure, configure `AZURE_KEY_VAULT_URL` and an Azure identity supported by `DefaultAzureCredential`.
+- Set `TRACING_BACKEND=LANGSMITH` to enable LangSmith tracing.
+- Set `LANGSMITH_API_KEY` directly, or set `LANGSMITH_API_KEY_SECRET` to resolve it through the configured secret backend.
+- Leave `TRACING_BACKEND` unset, or set `TRACING_BACKEND=NONE`, to run without tracing.
 
 ### Install Dependencies
 

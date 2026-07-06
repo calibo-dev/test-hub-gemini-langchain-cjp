@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI
@@ -7,6 +8,7 @@ from pydantic import BaseModel
 
 from latest_ai_development.config.settings import get_settings
 from latest_ai_development.config.validators import validate_configuration
+from latest_ai_development.tracking import initialize_langsmith_tracing
 from latest_ai_development.workflow import LatestAiDevelopmentWorkflow
 
 # Load settings
@@ -21,12 +23,19 @@ workflow = LatestAiDevelopmentWorkflow()
 API_ROOT_PATH = settings.normalized_api_root_path
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    initialize_langsmith_tracing()
+    yield
+
+
 # Initialize FastAPI application
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="LangChain workflow for automated research and report generation",
     root_path=API_ROOT_PATH,
+    lifespan=lifespan,
 )
 
 

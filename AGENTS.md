@@ -292,6 +292,25 @@ The system uses environment variables to resolve runtime configuration.
   - **Purpose**: Specifies the Azure Key Vault URL
   - **Required When**: `CLOUD_PROVIDER=AZURE`
 
+- **`TRACING_BACKEND`**
+  - **Purpose**: Selects the tracing backend
+  - **Supported Values**:
+    - `LANGSMITH`
+    - `NONE`
+  - **Default**: `NONE`
+
+- **`LANGSMITH_ENDPOINT`**
+  - **Purpose**: Optional LangSmith API endpoint
+
+- **`LANGSMITH_PROJECT`**
+  - **Purpose**: LangSmith project name for trace grouping
+
+- **`LANGSMITH_API_KEY`**
+  - **Purpose**: Direct LangSmith API key value
+
+- **`LANGSMITH_API_KEY_SECRET`**
+  - **Purpose**: Secret name used to resolve the LangSmith API key through the configured secret manager
+
 - **`OLLAMA_BASE_URL`**
   - **Purpose**: Specifies the base URL for the Ollama service
 
@@ -334,6 +353,13 @@ The system includes integration points for API execution, secret resolution, and
     - selects AWS Secrets Manager or Azure Key Vault through `CLOUD_PROVIDER`
     - uses `AWS_REGION` for AWS
     - uses `AZURE_KEY_VAULT_URL` and `DefaultAzureCredential` for Azure
+
+- **Tracing Integration**:
+  - **Purpose**: Enables optional LangSmith tracing for LangChain workflows
+  - **Capabilities**:
+    - enables LangSmith when `TRACING_BACKEND=LANGSMITH`
+    - resolves the LangSmith API key from `LANGSMITH_API_KEY` or `LANGSMITH_API_KEY_SECRET`
+    - disables tracing when `TRACING_BACKEND=NONE` or tracing is unset
 
 - **Context and Retrieval Integration**:
   - **Purpose**: Supports external context or knowledge inputs for research
