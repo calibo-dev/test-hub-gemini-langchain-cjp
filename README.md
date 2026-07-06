@@ -170,13 +170,19 @@ A typical local setup for this LangChain template looks like:
 - `uv` for dependency management
 - A configured LLM provider:
   - `OPENAI` with `OPENAI_API_KEY`, `API_KEY_SECRET`, or `OPENAI_API_KEY_SECRET`
+  - `ANTHROPICAI` with `ANTHROPIC_API_KEY`, `API_KEY_SECRET`, or `ANTHROPICAI_API_KEY_SECRET`
+  - `GEMINIAI` with `GOOGLE_API_KEY`, `GEMINI_API_KEY`, `API_KEY_SECRET`, or `GEMINIAI_API_KEY_SECRET`
   - or `OLLAMA` with a reachable `OLLAMA_BASE_URL`
 
 ### Secret Management
 
 - Set `OPENAI_API_KEY` for direct local OpenAI authentication.
-- Set `API_KEY_SECRET` to resolve the OpenAI API key from the configured secret backend.
+- Set `ANTHROPIC_API_KEY` for direct local Anthropic authentication.
+- Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` for direct local Gemini authentication.
+- Set `API_KEY_SECRET` to resolve hosted provider API keys from the configured secret backend.
 - `OPENAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
+- `ANTHROPICAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
+- `GEMINIAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
 - Set `CLOUD_PROVIDER=AWS` to retrieve secrets from AWS Secrets Manager.
 - Set `CLOUD_PROVIDER=AZURE` to retrieve secrets from Azure Key Vault.
 - When using AWS, configure `AWS_REGION` as needed.

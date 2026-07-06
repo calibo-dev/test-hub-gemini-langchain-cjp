@@ -15,6 +15,11 @@ CONFIG_DIR = BASE_DIR / "src" / "latest_ai_development" / "config"
 DEFAULT_OUTPUT_DIR = BASE_DIR / "output"
 DEFAULT_CONTEXT_DIR = BASE_DIR / "knowledge"
 
+PROVIDER_ALIASES = {
+    "anthropic": "anthropicai",
+    "gemini": "geminiai",
+}
+
 
 def normalize_api_context(raw_context: str | None) -> str:
     """Return a stable URL prefix like '/testing' or ''."""
@@ -26,6 +31,12 @@ def normalize_api_context(raw_context: str | None) -> str:
         return ""
 
     return "/" + normalized.strip("/")
+
+
+def normalize_provider_name(provider: str | None) -> str:
+    """Return the canonical provider key used in models.yaml."""
+    provider_key = (provider or "").strip().lower()
+    return PROVIDER_ALIASES.get(provider_key, provider_key)
 
 
 class Settings(BaseSettings):
@@ -48,6 +59,15 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_api_key_secret: str = Field(default="", alias="OPENAI_API_KEY_SECRET")
+
+    # Anthropic
+    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
+    anthropicai_api_key_secret: str = Field(default="", alias="ANTHROPICAI_API_KEY_SECRET")
+
+    # Gemini
+    google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    geminiai_api_key_secret: str = Field(default="", alias="GEMINIAI_API_KEY_SECRET")
 
     # Secret Manager
     api_key_secret: str = Field(default="", alias="API_KEY_SECRET")

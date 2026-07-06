@@ -50,6 +50,8 @@ Controlled by the `PROVIDER` environment variable.
 Supported providers:
 
 - `OPENAI`
+- `ANTHROPICAI`
+- `GEMINIAI`
 - `OLLAMA`
 
 ### LLM Initialization
@@ -255,15 +257,29 @@ The system uses environment variables to resolve runtime configuration.
   - **Purpose**: Selects the LLM provider
   - **Supported Values**:
     - `OPENAI`
+    - `ANTHROPICAI`
+    - `GEMINIAI`
     - `OLLAMA`
 
 - **`OPENAI_API_KEY`**
   - **Purpose**: Provides the API key for the OpenAI provider
 
 - **`API_KEY_SECRET`**
-  - **Purpose**: Preferred secret name used to resolve the OpenAI API key from the configured secret manager
+  - **Purpose**: Preferred secret name used to resolve hosted provider API keys from the configured secret manager
 
 - **`OPENAI_API_KEY_SECRET`**
+  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+
+- **`ANTHROPIC_API_KEY`**
+  - **Purpose**: Provides the API key for the Anthropic provider
+
+- **`ANTHROPICAI_API_KEY_SECRET`**
+  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+
+- **`GOOGLE_API_KEY`** / **`GEMINI_API_KEY`**
+  - **Purpose**: Provides the API key for the Gemini provider
+
+- **`GEMINIAI_API_KEY_SECRET`**
   - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
 
 - **`CLOUD_PROVIDER`**

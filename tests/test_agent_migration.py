@@ -172,6 +172,94 @@ def test_normalize_api_context_matches_crewai_behavior():
     assert normalize_api_context("/testing/") == "/testing"
 
 
+def test_normalize_provider_name_supports_crewai_provider_names():
+    from latest_ai_development.config.settings import normalize_provider_name
+
+    assert normalize_provider_name("OPENAI") == "openai"
+    assert normalize_provider_name("ANTHROPICAI") == "anthropicai"
+    assert normalize_provider_name("ANTHROPIC") == "anthropicai"
+    assert normalize_provider_name("GEMINIAI") == "geminiai"
+    assert normalize_provider_name("GEMINI") == "geminiai"
+
+
+def test_get_llm_builds_anthropic_provider(monkeypatch):
+    from latest_ai_development.llm import llm_factory as module
+
+    class FakeChatAnthropic:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setitem(
+        sys.modules,
+        "langchain_anthropic",
+        SimpleNamespace(ChatAnthropic=FakeChatAnthropic),
+    )
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
+    monkeypatch.setattr(module, "get_settings", lambda: SimpleNamespace(provider="ANTHROPICAI"))
+    monkeypatch.setattr(
+        module,
+        "get_models_config",
+        lambda: {
+            "providers": {
+                "anthropicai": {
+                    "chat_model": "claude-test",
+                    "temperature": 0.2,
+                    "max_tokens": 123,
+                }
+            }
+        },
+    )
+
+    llm = module.get_llm()
+
+    assert isinstance(llm, FakeChatAnthropic)
+    assert llm.kwargs == {
+        "model": "claude-test",
+        "temperature": 0.2,
+        "api_key": "anthropic-key",
+        "max_tokens": 123,
+    }
+
+
+def test_get_llm_builds_gemini_provider_alias(monkeypatch):
+    from latest_ai_development.llm import llm_factory as module
+
+    class FakeChatGoogleGenerativeAI:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setitem(
+        sys.modules,
+        "langchain_google_genai",
+        SimpleNamespace(ChatGoogleGenerativeAI=FakeChatGoogleGenerativeAI),
+    )
+    monkeypatch.setenv("GOOGLE_API_KEY", "gemini-key")
+    monkeypatch.setattr(module, "get_settings", lambda: SimpleNamespace(provider="GEMINI"))
+    monkeypatch.setattr(
+        module,
+        "get_models_config",
+        lambda: {
+            "providers": {
+                "geminiai": {
+                    "chat_model": "gemini-test",
+                    "temperature": 0.4,
+                    "max_tokens": 456,
+                }
+            }
+        },
+    )
+
+    llm = module.get_llm()
+
+    assert isinstance(llm, FakeChatGoogleGenerativeAI)
+    assert llm.kwargs == {
+        "model": "gemini-test",
+        "temperature": 0.4,
+        "api_key": "gemini-key",
+        "max_tokens": 456,
+    }
+
+
 def test_fastapi_root_path_uses_context_prefix(monkeypatch):
     from latest_ai_development.config import settings as settings_module
 
