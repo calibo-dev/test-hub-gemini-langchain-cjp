@@ -15,6 +15,11 @@ CONFIG_DIR = BASE_DIR / "src" / "latest_ai_development" / "config"
 DEFAULT_OUTPUT_DIR = BASE_DIR / "output"
 DEFAULT_CONTEXT_DIR = BASE_DIR / "knowledge"
 
+PROVIDER_ALIASES = {
+    "anthropic": "anthropicai",
+    "gemini": "geminiai",
+}
+
 
 def normalize_api_context(raw_context: str | None) -> str:
     """Return a stable URL prefix like '/testing' or ''."""
@@ -26,6 +31,12 @@ def normalize_api_context(raw_context: str | None) -> str:
         return ""
 
     return "/" + normalized.strip("/")
+
+
+def normalize_provider_name(provider: str | None) -> str:
+    """Return the canonical provider key used in models.yaml."""
+    provider_key = (provider or "").strip().lower()
+    return PROVIDER_ALIASES.get(provider_key, provider_key)
 
 
 class Settings(BaseSettings):
@@ -49,13 +60,34 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_api_key_secret: str = Field(default="", alias="OPENAI_API_KEY_SECRET")
 
+    # Anthropic
+    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
+    anthropicai_api_key_secret: str = Field(default="", alias="ANTHROPICAI_API_KEY_SECRET")
+
+    # Gemini
+    google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    geminiai_api_key_secret: str = Field(default="", alias="GEMINIAI_API_KEY_SECRET")
+
+    # Secret Manager
+    api_key_secret: str = Field(default="", alias="API_KEY_SECRET")
+    cloud_provider: str = Field(default="", alias="CLOUD_PROVIDER")
+    azure_key_vault_url: str = Field(default="", alias="AZURE_KEY_VAULT_URL")
+
+    # Tracing / Observability
+    tracing_backend: str = Field(default="NONE", alias="TRACING_BACKEND")
+    langsmith_endpoint: str = Field(default="", alias="LANGSMITH_ENDPOINT")
+    langsmith_project: str = Field(default="", alias="LANGSMITH_PROJECT")
+    langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
+    langsmith_api_key_secret: str = Field(default="", alias="LANGSMITH_API_KEY_SECRET")
+
     # Ollama
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
 
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_root_path: str = Field(default="", alias="API_ROOT_PATH")
-    port: int = Field(default=8089, alias="PORT")
+    port: int = Field(default=8080, alias="PORT")
 
     # AWS
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")

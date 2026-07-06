@@ -50,6 +50,8 @@ Controlled by the `PROVIDER` environment variable.
 Supported providers:
 
 - `OPENAI`
+- `ANTHROPICAI`
+- `GEMINIAI`
 - `OLLAMA`
 
 ### LLM Initialization
@@ -255,13 +257,59 @@ The system uses environment variables to resolve runtime configuration.
   - **Purpose**: Selects the LLM provider
   - **Supported Values**:
     - `OPENAI`
+    - `ANTHROPICAI`
+    - `GEMINIAI`
     - `OLLAMA`
 
 - **`OPENAI_API_KEY`**
   - **Purpose**: Provides the API key for the OpenAI provider
 
+- **`API_KEY_SECRET`**
+  - **Purpose**: Preferred secret name used to resolve hosted provider API keys from the configured secret manager
+
 - **`OPENAI_API_KEY_SECRET`**
-  - **Purpose**: Specifies the secret name used to resolve the OpenAI API key from AWS Secrets Manager
+  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+
+- **`ANTHROPIC_API_KEY`**
+  - **Purpose**: Provides the API key for the Anthropic provider
+
+- **`ANTHROPICAI_API_KEY_SECRET`**
+  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+
+- **`GOOGLE_API_KEY`** / **`GEMINI_API_KEY`**
+  - **Purpose**: Provides the API key for the Gemini provider
+
+- **`GEMINIAI_API_KEY_SECRET`**
+  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+
+- **`CLOUD_PROVIDER`**
+  - **Purpose**: Selects the secret backend
+  - **Supported Values**:
+    - `AWS`
+    - `AZURE`
+
+- **`AZURE_KEY_VAULT_URL`**
+  - **Purpose**: Specifies the Azure Key Vault URL
+  - **Required When**: `CLOUD_PROVIDER=AZURE`
+
+- **`TRACING_BACKEND`**
+  - **Purpose**: Selects the tracing backend
+  - **Supported Values**:
+    - `LANGSMITH`
+    - `NONE`
+  - **Default**: `NONE`
+
+- **`LANGSMITH_ENDPOINT`**
+  - **Purpose**: Optional LangSmith API endpoint
+
+- **`LANGSMITH_PROJECT`**
+  - **Purpose**: LangSmith project name for trace grouping
+
+- **`LANGSMITH_API_KEY`**
+  - **Purpose**: Direct LangSmith API key value
+
+- **`LANGSMITH_API_KEY_SECRET`**
+  - **Purpose**: Secret name used to resolve the LangSmith API key through the configured secret manager
 
 - **`OLLAMA_BASE_URL`**
   - **Purpose**: Specifies the base URL for the Ollama service
@@ -297,12 +345,21 @@ The system includes integration points for API execution, secret resolution, and
   - **Root Path**:
     - `/testing`
 
-- **AWS Secrets Manager Integration**:
+- **Secret Manager Integration**:
   - **Purpose**: Resolves provider credentials securely at runtime
   - **Capabilities**:
     - retrieves secrets by name
     - supports secret-based API key resolution
-    - uses configurable AWS region settings
+    - selects AWS Secrets Manager or Azure Key Vault through `CLOUD_PROVIDER`
+    - uses `AWS_REGION` for AWS
+    - uses `AZURE_KEY_VAULT_URL` and `DefaultAzureCredential` for Azure
+
+- **Tracing Integration**:
+  - **Purpose**: Enables optional LangSmith tracing for LangChain workflows
+  - **Capabilities**:
+    - enables LangSmith when `TRACING_BACKEND=LANGSMITH`
+    - resolves the LangSmith API key from `LANGSMITH_API_KEY` or `LANGSMITH_API_KEY_SECRET`
+    - disables tracing when `TRACING_BACKEND=NONE` or tracing is unset
 
 - **Context and Retrieval Integration**:
   - **Purpose**: Supports external context or knowledge inputs for research
@@ -415,6 +472,14 @@ The workflow relies on a set of core libraries for model integration, API servin
 - **`boto3`**
   - **Purpose**:
     - supports AWS service integration, including Secrets Manager access
+
+- **`azure-identity`**
+  - **Purpose**:
+    - supports Azure authentication through `DefaultAzureCredential`
+
+- **`azure-keyvault-secrets`**
+  - **Purpose**:
+    - supports Azure Key Vault secret retrieval
 
 - **`pydantic`**
   - **Purpose**:

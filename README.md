@@ -22,7 +22,7 @@ Primary stack:
 - **Python** application using a **src/**-layout package (`latest_ai_development`)
 - **LangChain** for agent orchestration, prompt construction, and model interaction
 - **FastAPI + Uvicorn** for HTTP endpoints (`/health`, `/ask`)
-- Optional integrations visible in code: **AWS Secrets Manager (boto3)** and an LLM endpoint configured via environment variables.
+- Optional integrations visible in code: **AWS Secrets Manager (boto3)**, **Azure Key Vault**, and LLM endpoints configured via environment variables.
 
 ### Template Origin
 
@@ -46,6 +46,8 @@ langchain template new langgraph-agent-template
 | FastAPI | `>=0.115.8` |
 | Uvicorn | `>=0.34.0` |
 | boto3 | `>=1.37.0` |
+| azure-identity | `>=1.25.1` |
+| azure-keyvault-secrets | `>=4.10.0` |
 | Pydantic | `>=2.10.6` |
 | pydantic-settings | `>=2.7.1` |
 | PyYAML | `>=6.0.2` |
@@ -75,7 +77,7 @@ langchain template new langgraph-agent-template
 │       ├── workflow.py                # Main LangChain two-agent orchestration logic
 │       ├── prompts.py                 # Prompt construction for both agents
 │       ├── main.py                    # FastAPI application and CLI entrypoints
-│       └── secrets_manager.py         # AWS Secrets Manager integration
+│       └── secrets_manager.py         # AWS Secrets Manager / Azure Key Vault integration
 ├── knowledge/
 │   └── user_preference.txt            # Example user/context preference file
 ├── output/
@@ -131,7 +133,7 @@ Conventions used (based on the available code):
   Resolves runtime configuration from environment variables, including provider selection, host/port, context path, output path, and config file locations.
 
 - **`src/latest_ai_development/secrets_manager.py`**  
-  Provides secret resolution support for AWS Secrets Manager. Incorrect edits can cause runtime authentication or configuration failures.
+  Provides secret resolution support for AWS Secrets Manager and Azure Key Vault. Incorrect edits can cause runtime authentication or configuration failures.
 
 - **`src/latest_ai_development/tools/custom_tool.py`**  
   Provides a starter example for extending the system with LangChain-compatible tools. Incorrect edits can break tool argument validation or invocation behavior.
@@ -167,8 +169,27 @@ A typical local setup for this LangChain template looks like:
 - Python in the supported range: `>=3.11,<3.13`
 - `uv` for dependency management
 - A configured LLM provider:
-  - `OPENAI` with `OPENAI_API_KEY` or `OPENAI_API_KEY_SECRET`
+  - `OPENAI` with `OPENAI_API_KEY`, `API_KEY_SECRET`, or `OPENAI_API_KEY_SECRET`
+  - `ANTHROPICAI` with `ANTHROPIC_API_KEY`, `API_KEY_SECRET`, or `ANTHROPICAI_API_KEY_SECRET`
+  - `GEMINIAI` with `GOOGLE_API_KEY`, `GEMINI_API_KEY`, `API_KEY_SECRET`, or `GEMINIAI_API_KEY_SECRET`
   - or `OLLAMA` with a reachable `OLLAMA_BASE_URL`
+
+### Secret Management
+
+- Set `OPENAI_API_KEY` for direct local OpenAI authentication.
+- Set `ANTHROPIC_API_KEY` for direct local Anthropic authentication.
+- Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` for direct local Gemini authentication.
+- Set `API_KEY_SECRET` to resolve hosted provider API keys from the configured secret backend.
+- `OPENAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
+- `ANTHROPICAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
+- `GEMINIAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
+- Set `CLOUD_PROVIDER=AWS` to retrieve secrets from AWS Secrets Manager.
+- Set `CLOUD_PROVIDER=AZURE` to retrieve secrets from Azure Key Vault.
+- When using AWS, configure `AWS_REGION` as needed.
+- When using Azure, configure `AZURE_KEY_VAULT_URL` and an Azure identity supported by `DefaultAzureCredential`.
+- Set `TRACING_BACKEND=LANGSMITH` to enable LangSmith tracing.
+- Set `LANGSMITH_API_KEY` directly, or set `LANGSMITH_API_KEY_SECRET` to resolve it through the configured secret backend.
+- Leave `TRACING_BACKEND` unset, or set `TRACING_BACKEND=NONE`, to run without tracing.
 
 ### Install Dependencies
 
@@ -194,4 +215,3 @@ PYTHONPATH=src uv run python -m latest_ai_development.main
 - HTTP support is available out of the box.
 - For secure deployments, customers are expected to enable and configure TLS/HTTPS after creating the template repository under Helm charts.
 - While HTTP is supported, we strongly recommend using HTTPS for all production deployments.
-

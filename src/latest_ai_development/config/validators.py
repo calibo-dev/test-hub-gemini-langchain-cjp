@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from typing import Set
-
 from latest_ai_development.config.settings import (
-    get_workflow_config,
-    get_stages_config,
     get_models_config,
     get_settings,
+    get_stages_config,
+    get_workflow_config,
+    normalize_provider_name,
 )
-
 from latest_ai_development.stages.stage_registry import STAGE_REGISTRY
 
 
@@ -38,14 +36,15 @@ def validate_stage_configuration() -> None:
     stages_cfg = get_stages_config()
 
     workflow_stages = set(workflow_cfg.get("stages", []))
-    registry_stages: Set[str] = set(STAGE_REGISTRY.keys())
-    config_stages: Set[str] = set(stages_cfg.keys())
+    registry_stages: set[str] = set(STAGE_REGISTRY.keys())
+    config_stages: set[str] = set(stages_cfg.keys())
 
     # 1. workflow.yaml must reference registered stages
     unknown_registry = workflow_stages - registry_stages
     if unknown_registry:
         raise ValueError(
-            f"workflow.yaml references unknown stages not in STAGE_REGISTRY: {sorted(unknown_registry)}"
+            "workflow.yaml references unknown stages not in STAGE_REGISTRY: "
+            f"{sorted(unknown_registry)}"
         )
 
     # 2. workflow.yaml must have stage config
@@ -59,7 +58,8 @@ def validate_stage_configuration() -> None:
     unused_configs = config_stages - workflow_stages
     if unused_configs:
         print(
-            f"[Warning] stages.yaml contains configs not used in workflow.yaml: {sorted(unused_configs)}"
+            "[Warning] stages.yaml contains configs not used in workflow.yaml: "
+            f"{sorted(unused_configs)}"
         )
 
 
@@ -71,7 +71,7 @@ def validate_model_configuration() -> None:
     settings = get_settings()
     models_cfg = get_models_config()
 
-    default_provider = models_cfg.get("default_provider")
+    default_provider = normalize_provider_name(models_cfg.get("default_provider"))
     providers = models_cfg.get("providers", {})
 
     if not providers:
@@ -82,7 +82,7 @@ def validate_model_configuration() -> None:
             f"default_provider '{default_provider}' is not defined in models.yaml providers"
         )
 
-    env_provider = settings.provider.lower()
+    env_provider = normalize_provider_name(settings.provider)
 
     if env_provider not in providers:
         raise ValueError(
