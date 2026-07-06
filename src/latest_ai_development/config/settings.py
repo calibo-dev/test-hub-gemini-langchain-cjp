@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
-from functools import lru_cache
 
 import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parents[3]
@@ -15,6 +14,18 @@ CONFIG_DIR = BASE_DIR / "src" / "latest_ai_development" / "config"
 
 DEFAULT_OUTPUT_DIR = BASE_DIR / "output"
 DEFAULT_CONTEXT_DIR = BASE_DIR / "knowledge"
+
+
+def normalize_api_context(raw_context: str | None) -> str:
+    """Return a stable URL prefix like '/testing' or ''."""
+    if not raw_context:
+        return ""
+
+    normalized = raw_context.strip()
+    if not normalized or normalized == "/":
+        return ""
+
+    return "/" + normalized.strip("/")
 
 
 class Settings(BaseSettings):
@@ -43,13 +54,14 @@ class Settings(BaseSettings):
 
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
-    port: int = Field(default=8080, alias="PORT")
+    api_root_path: str = Field(default="", alias="API_ROOT_PATH")
+    port: int = Field(default=8089, alias="PORT")
 
     # AWS
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
 
     # Context / Knowledge
-    context: str = Field(default=str(DEFAULT_CONTEXT_DIR), alias="CONTEXT")
+    context: str = Field(default="/", alias="CONTEXT")
 
     # Output
     report_output_file: str = Field(default="report.md", alias="REPORT_OUTPUT_FILE")
@@ -59,6 +71,10 @@ class Settings(BaseSettings):
     @property
     def context_path(self) -> Path:
         return Path(self.context).expanduser()
+
+    @property
+    def normalized_api_root_path(self) -> str:
+        return normalize_api_context(self.api_root_path or self.context)
 
     @property
     def output_dir_path(self) -> Path:
@@ -84,7 +100,7 @@ class Settings(BaseSettings):
 
 # Runtime helpers
 def ensure_runtime_dirs(settings: Settings) -> None:
-    settings.context_path.mkdir(parents=True, exist_ok=True)
+    # settings.context_path.mkdir(parents=True, exist_ok=True)
     settings.output_dir_path.mkdir(parents=True, exist_ok=True)
 
 

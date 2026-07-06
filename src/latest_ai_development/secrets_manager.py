@@ -4,6 +4,9 @@ import base64
 import json
 import os
 from functools import lru_cache
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -128,7 +131,6 @@ def main():
     print("=== Secrets Manager Test ===")
 
     print("AWS_REGION:", os.getenv("AWS_REGION"))
-    print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
     print("OPENAI_API_KEY_SECRET:", os.getenv("OPENAI_API_KEY_SECRET"))
 
     print("\n--- Testing resolve_openai_api_key() ---")
@@ -138,7 +140,6 @@ def main():
 
         if key:
             print("SUCCESS: OpenAI API key resolved")
-            print("Key prefix:", key[:10], "...")
         else:
             print("WARNING: No key resolved")
 

@@ -42,4 +42,13 @@ class LatestAiDevelopmentWorkflow:
 
             context.update(result)
 
+        if self.workflow_config.get("execution", {}).get("save_output", False):
+            report = context.get("report")
+            if report:
+                self.settings.output_dir_path.mkdir(parents=True, exist_ok=True)
+                self.settings.report_output_path.write_text(
+                    str(report),
+                    encoding="utf-8",
+                )
+
         return context

@@ -7,7 +7,6 @@ from latest_ai_development.llm.llm_factory import get_llm
 from latest_ai_development.prompts.prompt_builder import build_reporting_prompt
 
 
-
 def build_reporting_chain():
     """
     Build the reporting stage LangChain pipeline.

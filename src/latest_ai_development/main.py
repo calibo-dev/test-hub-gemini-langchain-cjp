@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -9,7 +8,6 @@ from pydantic import BaseModel
 from latest_ai_development.config.settings import get_settings
 from latest_ai_development.config.validators import validate_configuration
 from latest_ai_development.workflow import LatestAiDevelopmentWorkflow
-
 
 # Load settings
 settings = get_settings()
@@ -20,13 +18,15 @@ validate_configuration()
 # Initialize workflow controller
 workflow = LatestAiDevelopmentWorkflow()
 
+API_ROOT_PATH = settings.normalized_api_root_path
+
 
 # Initialize FastAPI application
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="LangChain workflow for automated research and report generation",
-    root_path=f"/{settings.context}",
+    root_path=API_ROOT_PATH,
 )
 
 
@@ -35,7 +35,7 @@ class AskRequest(BaseModel):
 
 
 @app.get("/health")
-def health() -> Dict[str, str]:
+def health() -> dict[str, str]:
     """
     Health check endpoint.
     """
@@ -43,7 +43,7 @@ def health() -> Dict[str, str]:
 
 
 @app.post("/ask")
-def ask(request: AskRequest) -> Dict[str, str]:
+def ask(request: AskRequest) -> dict[str, str]:
     """
     Execute the research + reporting workflow.
     """
@@ -62,6 +62,21 @@ def ask(request: AskRequest) -> Dict[str, str]:
     }
 
 
+if API_ROOT_PATH:
+    app.add_api_route(
+        f"{API_ROOT_PATH}/health",
+        health,
+        methods=["GET"],
+        include_in_schema=False,
+    )
+    app.add_api_route(
+        f"{API_ROOT_PATH}/ask",
+        ask,
+        methods=["POST"],
+        include_in_schema=False,
+    )
+
+
 # CLI-compatible entrypoint
 def run() -> None:
     import uvicorn
@@ -72,3 +87,7 @@ def run() -> None:
         port=settings.port,
         reload=settings.debug,
     )
+
+
+if __name__ == "__main__":
+    run()
