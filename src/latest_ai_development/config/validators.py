@@ -74,6 +74,8 @@ def validate_model_configuration() -> None:
     default_provider = models_cfg.get("default_provider")
     providers = models_cfg.get("providers", {})
 
+    print(f"Default Provider: {providers}", end="\n\n}")  # Debugging line
+
     if not providers:
         raise ValueError("models.yaml must define at least one provider")
 

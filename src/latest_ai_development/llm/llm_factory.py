@@ -1,12 +1,49 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 
 from latest_ai_development.config.settings import get_models_config, get_settings
-from latest_ai_development.secrets_manager import resolve_openai_api_key
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def resolve_openai_api_key() -> str:
+    """
+    Resolve the OpenAI API key without changing the shared secrets manager file.
+
+    Priority:
+    1. OPENAI_API_KEY
+    2. API_KEY_SECRET
+    3. OPENAI_API_KEY_SECRET
+    """
+    direct_api_key = os.getenv("OPENAI_API_KEY", "").strip()
+
+    print(f"Direct API Key: {direct_api_key}")  # Debugging line
+
+    if direct_api_key:
+        print("Using direct API key")
+        return direct_api_key
+
+    secret_name = (
+        os.getenv("API_KEY_SECRET", "").strip()
+        or os.getenv("OPENAI_API_KEY_SECRET", "").strip()
+    )
+
+    print(f"Resolved Secret Name: {secret_name}")  # Debugging line
+    
+    if not secret_name:
+        print(f"Secret Name is empty")  # Debug
+        return ""
+    
+    print(f"Secret Name: {secret_name}")  # Debugging line
+
+    from latest_ai_development.secrets_manager import SecretsManager
+
+    return (SecretsManager().get_secret(secret_name) or "").strip()
 
 
 def get_llm(**overrides: Any):
@@ -47,7 +84,7 @@ def get_llm(**overrides: Any):
         if not api_key:
             raise ValueError(
                 "OpenAI API key not found. "
-                "Set OPENAI_API_KEY or OPENAI_API_KEY_SECRET."
+                "Set OPENAI_API_KEY, API_KEY_SECRET, or OPENAI_API_KEY_SECRET."
             )
 
         return ChatOpenAI(

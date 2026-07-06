@@ -49,13 +49,18 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_api_key_secret: str = Field(default="", alias="OPENAI_API_KEY_SECRET")
 
+    # Secret Manager
+    api_key_secret: str = Field(default="", alias="API_KEY_SECRET")
+    cloud_provider: str = Field(default="", alias="CLOUD_PROVIDER")
+    azure_key_vault_url: str = Field(default="", alias="AZURE_KEY_VAULT_URL")
+
     # Ollama
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
 
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_root_path: str = Field(default="", alias="API_ROOT_PATH")
-    port: int = Field(default=8089, alias="PORT")
+    port: int = Field(default=8080, alias="PORT")
 
     # AWS
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
