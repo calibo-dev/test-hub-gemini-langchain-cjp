@@ -1,24 +1,37 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from latest_ai_development.config.settings import get_settings
 from latest_ai_development.config.validators import validate_configuration
+from latest_ai_development.logging_utils import configure_logging
 from latest_ai_development.tracking import initialize_langsmith_tracing
 from latest_ai_development.workflow import LatestAiDevelopmentWorkflow
 
 # Load settings
 settings = get_settings()
+configure_logging(getattr(settings, "log_level", "INFO"))
+logger = logging.getLogger(__name__)
 
 # Validate configuration at startup
-validate_configuration()
+try:
+    validate_configuration()
+except Exception:
+    logger.exception("Startup configuration validation failed")
+    raise
 
 # Initialize workflow controller
-workflow = LatestAiDevelopmentWorkflow()
+try:
+    workflow = LatestAiDevelopmentWorkflow()
+except Exception:
+    logger.exception("Workflow initialization failed")
+    raise
 
 API_ROOT_PATH = settings.normalized_api_root_path
 
@@ -56,6 +69,13 @@ def ask(request: AskRequest) -> dict[str, str]:
     """
     Execute the research + reporting workflow.
     """
+    flow_run_id = uuid4().hex[:12]
+
+    logger.info(
+        "Request started | flow_run_id=%s | topic=%s",
+        flow_run_id,
+        request.topic,
+    )
 
     inputs = {
         "topic": request.topic,
@@ -63,7 +83,29 @@ def ask(request: AskRequest) -> dict[str, str]:
         "knowledge_context": "",
     }
 
-    result = workflow.kickoff(inputs)
+    try:
+        try:
+            result = workflow.kickoff(inputs, flow_run_id=flow_run_id)
+        except TypeError as exc:
+            if "unexpected keyword argument 'flow_run_id'" not in str(exc):
+                raise
+            result = workflow.kickoff(inputs)
+    except Exception as exc:
+        logger.exception(
+            "Request failed | flow_run_id=%s | topic=%s",
+            flow_run_id,
+            request.topic,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Workflow execution failed. flow_run_id={flow_run_id}",
+        ) from exc
+
+    logger.info(
+        "Request completed | flow_run_id=%s | topic=%s",
+        flow_run_id,
+        request.topic,
+    )
 
     return {
         "topic": result.get("topic"),
@@ -95,6 +137,7 @@ def run() -> None:
         host=settings.api_host,
         port=settings.port,
         reload=settings.debug,
+        log_level=str(getattr(settings, "log_level", "INFO")).lower(),
     )
 
 

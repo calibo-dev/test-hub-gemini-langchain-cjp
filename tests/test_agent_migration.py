@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import importlib
+import logging
 import sys
 from types import SimpleNamespace
 
+import pytest
+
+from latest_ai_development import secrets_manager as secrets_module
 from latest_ai_development.agents.research_agent_builder import extract_final_message_text
 
 
@@ -162,6 +166,116 @@ def test_workflow_does_not_write_report_when_save_output_disabled(monkeypatch, t
     assert not settings.report_output_path.exists()
 
 
+def test_workflow_logs_stage_failure_with_flow_run_id(monkeypatch, caplog, tmp_path):
+    from latest_ai_development import workflow as module
+
+    class FailingStage:
+        component_name = "research_agent"
+
+        def invoke(self, context):
+            raise RuntimeError("boom")
+
+    settings = SimpleNamespace(
+        output_dir_path=tmp_path,
+        report_output_path=tmp_path / "report.md",
+        log_level="INFO",
+        provider="OPENAI",
+    )
+    monkeypatch.setattr(module, "get_settings", lambda: settings)
+    monkeypatch.setattr(
+        module,
+        "get_workflow_config",
+        lambda: {"stages": ["research"], "execution": {"save_output": False}},
+    )
+    monkeypatch.setattr(module, "STAGE_REGISTRY", {"research": FailingStage})
+    caplog.set_level(logging.ERROR, logger="latest_ai_development.workflow")
+
+    with pytest.raises(RuntimeError):
+        module.LatestAiDevelopmentWorkflow().kickoff(
+            {"topic": "AI agents"},
+            flow_run_id="flow-123",
+        )
+
+    assert any(
+        "Stage execution failed" in record.message
+        and "flow_run_id=flow-123" in record.message
+        and "component=research_agent" in record.message
+        for record in caplog.records
+    )
+
+
+def test_research_stage_logs_agent_failure(monkeypatch, caplog):
+    from latest_ai_development.stages import research_stage as module
+
+    class FailingAgent:
+        def invoke(self, payload):
+            raise RuntimeError("agent boom")
+
+    monkeypatch.setattr(module, "build_research_agent", lambda: FailingAgent())
+    monkeypatch.setattr(
+        module,
+        "get_stages_config",
+        lambda: {
+            "research": {
+                "system_prompt": "Research",
+                "instructions": [],
+                "output_sections": ["Overview"],
+            }
+        },
+    )
+    caplog.set_level(logging.ERROR, logger="latest_ai_development.stages.research_stage")
+
+    stage = module.ResearchStage()
+
+    with pytest.raises(RuntimeError):
+        stage.invoke(
+            {
+                "topic": "AI agents",
+                "current_year": 2026,
+                "knowledge_context": "",
+                "flow_run_id": "flow-456",
+            }
+        )
+
+    assert any(
+        "Research stage execution failed" in record.message
+        and "flow_run_id=flow-456" in record.message
+        and "component=research_agent" in record.message
+        for record in caplog.records
+    )
+
+
+def test_reporting_stage_logs_chain_failure(monkeypatch, caplog):
+    from latest_ai_development.stages import reporting_stage as module
+
+    class FailingChain:
+        def invoke(self, payload):
+            raise RuntimeError("chain boom")
+
+    monkeypatch.setattr(module, "build_reporting_chain", lambda: FailingChain())
+    caplog.set_level(logging.ERROR, logger="latest_ai_development.stages.reporting_stage")
+
+    stage = module.ReportingStage()
+
+    with pytest.raises(RuntimeError):
+        stage.invoke(
+            {
+                "topic": "AI agents",
+                "research_notes": "notes",
+                "current_year": 2026,
+                "knowledge_context": "",
+                "flow_run_id": "flow-789",
+            }
+        )
+
+    assert any(
+        "Reporting stage execution failed" in record.message
+        and "flow_run_id=flow-789" in record.message
+        and "component=reporting_chain" in record.message
+        for record in caplog.records
+    )
+
+
 def test_normalize_api_context_matches_crewai_behavior():
     from latest_ai_development.config.settings import normalize_api_context
 
@@ -189,13 +303,25 @@ def test_get_llm_builds_anthropic_provider(monkeypatch):
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+    class FakeSecretsManager:
+        def get_secret(self, secret_name, secret_key=None):
+            assert secret_name == "anthropic-secret"
+            return "anthropic-key"
+
     monkeypatch.setitem(
         sys.modules,
         "langchain_anthropic",
         SimpleNamespace(ChatAnthropic=FakeChatAnthropic),
     )
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
-    monkeypatch.setattr(module, "get_settings", lambda: SimpleNamespace(provider="ANTHROPICAI"))
+    monkeypatch.setattr(secrets_module, "SecretsManager", FakeSecretsManager)
+    monkeypatch.setattr(
+        module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            provider="ANTHROPICAI",
+            anthropicai_api_key_secret="anthropic-secret",
+        ),
+    )
     monkeypatch.setattr(
         module,
         "get_models_config",
@@ -228,13 +354,22 @@ def test_get_llm_builds_gemini_provider_alias(monkeypatch):
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+    class FakeSecretsManager:
+        def get_secret(self, secret_name, secret_key=None):
+            assert secret_name == "gemini-secret"
+            return "gemini-key"
+
     monkeypatch.setitem(
         sys.modules,
         "langchain_google_genai",
         SimpleNamespace(ChatGoogleGenerativeAI=FakeChatGoogleGenerativeAI),
     )
-    monkeypatch.setenv("GOOGLE_API_KEY", "gemini-key")
-    monkeypatch.setattr(module, "get_settings", lambda: SimpleNamespace(provider="GEMINI"))
+    monkeypatch.setattr(secrets_module, "SecretsManager", FakeSecretsManager)
+    monkeypatch.setattr(
+        module,
+        "get_settings",
+        lambda: SimpleNamespace(provider="GEMINI", geminiai_api_key_secret="gemini-secret"),
+    )
     monkeypatch.setattr(
         module,
         "get_models_config",

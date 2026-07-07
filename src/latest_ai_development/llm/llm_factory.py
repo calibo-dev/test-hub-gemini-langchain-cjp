@@ -71,7 +71,7 @@ def get_llm(**overrides: Any):
     # OPENAI
     if provider == "openai":
 
-        api_key = resolve_api_key(settings.openai_api_key_secret)
+        api_key = resolve_api_key(getattr(settings, "openai_api_key_secret", ""))
 
         if not api_key:
             raise ValueError(
@@ -88,7 +88,7 @@ def get_llm(**overrides: Any):
     # ANTHROPIC
     if provider == "anthropicai":
 
-        api_key = resolve_api_key(settings.anthropicai_api_key_secret)
+        api_key = resolve_api_key(getattr(settings, "anthropicai_api_key_secret", ""))
 
         if not api_key:
             raise ValueError(
@@ -117,7 +117,7 @@ def get_llm(**overrides: Any):
     # GEMINI
     if provider == "geminiai":
 
-        api_key = resolve_api_key(settings.geminiai_api_key_secret)
+        api_key = resolve_api_key(getattr(settings, "geminiai_api_key_secret", ""))
 
         if not api_key:
             raise ValueError(

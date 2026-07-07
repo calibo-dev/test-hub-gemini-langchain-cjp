@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from latest_ai_development.config.settings import (
     get_models_config,
     get_settings,
@@ -8,6 +10,8 @@ from latest_ai_development.config.settings import (
     normalize_provider_name,
 )
 from latest_ai_development.stages.stage_registry import STAGE_REGISTRY
+
+logger = logging.getLogger(__name__)
 
 
 def validate_configuration() -> None:
@@ -57,7 +61,7 @@ def validate_stage_configuration() -> None:
     # 3. warn if unused configs exist
     unused_configs = config_stages - workflow_stages
     if unused_configs:
-        print(
+        logger.warning(
             "[Warning] stages.yaml contains configs not used in workflow.yaml: "
             f"{sorted(unused_configs)}"
         )

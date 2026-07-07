@@ -9,7 +9,7 @@ from latest_ai_development.secrets_manager import SecretsManager
 
 load_dotenv()
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger(__name__)
 
 _LANGSMITH_INITIALIZED = False
 

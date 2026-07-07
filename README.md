@@ -186,6 +186,9 @@ A typical local setup for this LangChain template looks like:
 - Set `TRACING_BACKEND=LANGSMITH` to enable LangSmith tracing.
 - Set `LANGSMITH_API_KEY_SECRET` to resolve the LangSmith API key through the configured secret backend.
 - Leave `TRACING_BACKEND` unset, or set `TRACING_BACKEND=NONE`, to run without tracing.
+- Set `LOG_LEVEL=DEBUG` to increase runtime logging when you need stage-level detail.
+
+Each request/run also emits a `flow_run_id` in the API response so you can correlate a user request with the matching log lines.
 
 ### Install Dependencies
 

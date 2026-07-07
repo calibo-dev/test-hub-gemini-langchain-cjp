@@ -287,6 +287,10 @@ The system uses environment variables to resolve runtime configuration.
     - `NONE`
   - **Default**: `NONE`
 
+- **`LOG_LEVEL`**
+  - **Purpose**: Controls application log verbosity for workflow, stage, and API logs
+  - **Default**: `INFO`
+
 - **`LANGSMITH_ENDPOINT`**
   - **Purpose**: Optional LangSmith API endpoint
 
