@@ -42,10 +42,6 @@ def _first_env_value(*env_names: str) -> str | None:
 
 
 def _resolve_langsmith_api_key() -> str | None:
-    api_key = _first_env_value("LANGSMITH_API_KEY", "LANGCHAIN_API_KEY")
-    if api_key:
-        return api_key
-
     secret_name = _first_env_value("LANGSMITH_API_KEY_SECRET", "LANGCHAIN_API_KEY_SECRET")
     if not secret_name:
         return None
@@ -72,8 +68,8 @@ def initialize_langsmith_tracing() -> None:
         api_key = _resolve_langsmith_api_key()
         if not api_key:
             raise ValueError(
-                "TRACING_BACKEND is LANGSMITH but LANGSMITH_API_KEY or "
-                "LANGSMITH_API_KEY_SECRET is not configured."
+                "TRACING_BACKEND is LANGSMITH but LANGSMITH_API_KEY_SECRET is not "
+                "configured."
             )
 
         os.environ["LANGSMITH_API_KEY"] = api_key

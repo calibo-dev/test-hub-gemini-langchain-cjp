@@ -57,16 +57,12 @@ class Settings(BaseSettings):
     provider: str = Field(default="OPENAI", alias="PROVIDER")
 
     # OpenAI
-    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_api_key_secret: str = Field(default="", alias="OPENAI_API_KEY_SECRET")
 
     # Anthropic
-    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     anthropicai_api_key_secret: str = Field(default="", alias="ANTHROPICAI_API_KEY_SECRET")
 
     # Gemini
-    google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
-    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     geminiai_api_key_secret: str = Field(default="", alias="GEMINIAI_API_KEY_SECRET")
 
     # Secret Manager
@@ -78,7 +74,6 @@ class Settings(BaseSettings):
     tracing_backend: str = Field(default="NONE", alias="TRACING_BACKEND")
     langsmith_endpoint: str = Field(default="", alias="LANGSMITH_ENDPOINT")
     langsmith_project: str = Field(default="", alias="LANGSMITH_PROJECT")
-    langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_api_key_secret: str = Field(default="", alias="LANGSMITH_API_KEY_SECRET")
 
     # Ollama
