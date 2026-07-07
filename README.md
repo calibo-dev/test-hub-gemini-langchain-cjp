@@ -169,16 +169,13 @@ A typical local setup for this LangChain template looks like:
 - Python in the supported range: `>=3.11,<3.13`
 - `uv` for dependency management
 - A configured LLM provider:
-  - `OPENAI` with `OPENAI_API_KEY`, `API_KEY_SECRET`, or `OPENAI_API_KEY_SECRET`
-  - `ANTHROPICAI` with `ANTHROPIC_API_KEY`, `API_KEY_SECRET`, or `ANTHROPICAI_API_KEY_SECRET`
-  - `GEMINIAI` with `GOOGLE_API_KEY`, `GEMINI_API_KEY`, `API_KEY_SECRET`, or `GEMINIAI_API_KEY_SECRET`
+  - `OPENAI` with `API_KEY_SECRET` or `OPENAI_API_KEY_SECRET`
+  - `ANTHROPICAI` with `API_KEY_SECRET` or `ANTHROPICAI_API_KEY_SECRET`
+  - `GEMINIAI` with `API_KEY_SECRET` or `GEMINIAI_API_KEY_SECRET`
   - or `OLLAMA` with a reachable `OLLAMA_BASE_URL`
 
 ### Secret Management
 
-- Set `OPENAI_API_KEY` for direct local OpenAI authentication.
-- Set `ANTHROPIC_API_KEY` for direct local Anthropic authentication.
-- Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` for direct local Gemini authentication.
 - Set `API_KEY_SECRET` to resolve hosted provider API keys from the configured secret backend.
 - `OPENAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
 - `ANTHROPICAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
@@ -188,7 +185,7 @@ A typical local setup for this LangChain template looks like:
 - When using AWS, configure `AWS_REGION` as needed.
 - When using Azure, configure `AZURE_KEY_VAULT_URL` and an Azure identity supported by `DefaultAzureCredential`.
 - Set `TRACING_BACKEND=LANGSMITH` to enable LangSmith tracing.
-- Set `LANGSMITH_API_KEY` directly, or set `LANGSMITH_API_KEY_SECRET` to resolve it through the configured secret backend.
+- Set `LANGSMITH_API_KEY_SECRET` to resolve the LangSmith API key through the configured secret backend.
 - Leave `TRACING_BACKEND` unset, or set `TRACING_BACKEND=NONE`, to run without tracing.
 
 ### Install Dependencies

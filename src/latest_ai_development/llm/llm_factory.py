@@ -26,22 +26,15 @@ def _first_env_value(*env_names: str) -> str:
 
 def resolve_api_key(
     *,
-    direct_env_vars: tuple[str, ...],
     fallback_secret_env_var: str,
 ) -> str:
     """
     Resolve a provider API key without changing the shared secrets manager file.
 
     Priority:
-    1. Provider-specific direct API key environment variable
-    2. API_KEY_SECRET
-    3. Provider-specific fallback secret environment variable
+    1. API_KEY_SECRET
+    2. Provider-specific fallback secret environment variable
     """
-    direct_api_key = _first_env_value(*direct_env_vars)
-
-    if direct_api_key:
-        return direct_api_key
-
     secret_name = _first_env_value("API_KEY_SECRET", fallback_secret_env_var)
 
     if not secret_name:
@@ -54,21 +47,18 @@ def resolve_api_key(
 
 def resolve_openai_api_key() -> str:
     return resolve_api_key(
-        direct_env_vars=("OPENAI_API_KEY",),
         fallback_secret_env_var="OPENAI_API_KEY_SECRET",
     )
 
 
 def resolve_anthropic_api_key() -> str:
     return resolve_api_key(
-        direct_env_vars=("ANTHROPIC_API_KEY",),
         fallback_secret_env_var="ANTHROPICAI_API_KEY_SECRET",
     )
 
 
 def resolve_gemini_api_key() -> str:
     return resolve_api_key(
-        direct_env_vars=("GOOGLE_API_KEY", "GEMINI_API_KEY"),
         fallback_secret_env_var="GEMINIAI_API_KEY_SECRET",
     )
 
@@ -118,7 +108,7 @@ def get_llm(**overrides: Any):
         if not api_key:
             raise ValueError(
                 "OpenAI API key not found. "
-                "Set OPENAI_API_KEY, API_KEY_SECRET, or OPENAI_API_KEY_SECRET."
+                "Set API_KEY_SECRET or OPENAI_API_KEY_SECRET."
             )
 
         return ChatOpenAI(
@@ -135,7 +125,7 @@ def get_llm(**overrides: Any):
         if not api_key:
             raise ValueError(
                 "Anthropic API key not found. "
-                "Set ANTHROPIC_API_KEY, API_KEY_SECRET, or ANTHROPICAI_API_KEY_SECRET."
+                "Set API_KEY_SECRET or ANTHROPICAI_API_KEY_SECRET."
             )
 
         try:
@@ -164,8 +154,7 @@ def get_llm(**overrides: Any):
         if not api_key:
             raise ValueError(
                 "Gemini API key not found. "
-                "Set GOOGLE_API_KEY, GEMINI_API_KEY, API_KEY_SECRET, or "
-                "GEMINIAI_API_KEY_SECRET."
+                "Set API_KEY_SECRET or GEMINIAI_API_KEY_SECRET."
             )
 
         try:

@@ -261,23 +261,14 @@ The system uses environment variables to resolve runtime configuration.
     - `GEMINIAI`
     - `OLLAMA`
 
-- **`OPENAI_API_KEY`**
-  - **Purpose**: Provides the API key for the OpenAI provider
-
 - **`API_KEY_SECRET`**
   - **Purpose**: Preferred secret name used to resolve hosted provider API keys from the configured secret manager
 
 - **`OPENAI_API_KEY_SECRET`**
   - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
 
-- **`ANTHROPIC_API_KEY`**
-  - **Purpose**: Provides the API key for the Anthropic provider
-
 - **`ANTHROPICAI_API_KEY_SECRET`**
   - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
-
-- **`GOOGLE_API_KEY`** / **`GEMINI_API_KEY`**
-  - **Purpose**: Provides the API key for the Gemini provider
 
 - **`GEMINIAI_API_KEY_SECRET`**
   - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
@@ -304,9 +295,6 @@ The system uses environment variables to resolve runtime configuration.
 
 - **`LANGSMITH_PROJECT`**
   - **Purpose**: LangSmith project name for trace grouping
-
-- **`LANGSMITH_API_KEY`**
-  - **Purpose**: Direct LangSmith API key value
 
 - **`LANGSMITH_API_KEY_SECRET`**
   - **Purpose**: Secret name used to resolve the LangSmith API key through the configured secret manager
@@ -358,7 +346,7 @@ The system includes integration points for API execution, secret resolution, and
   - **Purpose**: Enables optional LangSmith tracing for LangChain workflows
   - **Capabilities**:
     - enables LangSmith when `TRACING_BACKEND=LANGSMITH`
-    - resolves the LangSmith API key from `LANGSMITH_API_KEY` or `LANGSMITH_API_KEY_SECRET`
+    - resolves the LangSmith API key from `LANGSMITH_API_KEY_SECRET`
     - disables tracing when `TRACING_BACKEND=NONE` or tracing is unset
 
 - **Context and Retrieval Integration**:
