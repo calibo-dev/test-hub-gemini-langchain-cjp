@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from dotenv import load_dotenv
@@ -16,26 +15,13 @@ from latest_ai_development.config.settings import (
 load_dotenv()
 
 
-def _first_env_value(*env_names: str) -> str:
-    for env_name in env_names:
-        value = os.getenv(env_name, "").strip()
-        if value:
-            return value
-    return ""
-
-
 def resolve_api_key(
-    *,
-    fallback_secret_env_var: str,
+    secret_name: str,
 ) -> str:
     """
-    Resolve a provider API key without changing the shared secrets manager file.
-
-    Priority:
-    1. API_KEY_SECRET
-    2. Provider-specific fallback secret environment variable
+    Resolve a provider API key from its provider-specific secret name.
     """
-    secret_name = _first_env_value("API_KEY_SECRET", fallback_secret_env_var)
+    secret_name = secret_name.strip()
 
     if not secret_name:
         return ""
@@ -43,24 +29,6 @@ def resolve_api_key(
     from latest_ai_development.secrets_manager import SecretsManager
 
     return (SecretsManager().get_secret(secret_name) or "").strip()
-
-
-def resolve_openai_api_key() -> str:
-    return resolve_api_key(
-        fallback_secret_env_var="OPENAI_API_KEY_SECRET",
-    )
-
-
-def resolve_anthropic_api_key() -> str:
-    return resolve_api_key(
-        fallback_secret_env_var="ANTHROPICAI_API_KEY_SECRET",
-    )
-
-
-def resolve_gemini_api_key() -> str:
-    return resolve_api_key(
-        fallback_secret_env_var="GEMINIAI_API_KEY_SECRET",
-    )
 
 
 def get_llm(**overrides: Any):
@@ -103,12 +71,12 @@ def get_llm(**overrides: Any):
     # OPENAI
     if provider == "openai":
 
-        api_key = resolve_openai_api_key()
+        api_key = resolve_api_key(settings.openai_api_key_secret)
 
         if not api_key:
             raise ValueError(
                 "OpenAI API key not found. "
-                "Set API_KEY_SECRET or OPENAI_API_KEY_SECRET."
+                "Set OPENAI_API_KEY_SECRET."
             )
 
         return ChatOpenAI(
@@ -120,12 +88,12 @@ def get_llm(**overrides: Any):
     # ANTHROPIC
     if provider == "anthropicai":
 
-        api_key = resolve_anthropic_api_key()
+        api_key = resolve_api_key(settings.anthropicai_api_key_secret)
 
         if not api_key:
             raise ValueError(
                 "Anthropic API key not found. "
-                "Set API_KEY_SECRET or ANTHROPICAI_API_KEY_SECRET."
+                "Set ANTHROPICAI_API_KEY_SECRET."
             )
 
         try:
@@ -149,12 +117,12 @@ def get_llm(**overrides: Any):
     # GEMINI
     if provider == "geminiai":
 
-        api_key = resolve_gemini_api_key()
+        api_key = resolve_api_key(settings.geminiai_api_key_secret)
 
         if not api_key:
             raise ValueError(
                 "Gemini API key not found. "
-                "Set API_KEY_SECRET or GEMINIAI_API_KEY_SECRET."
+                "Set GEMINIAI_API_KEY_SECRET."
             )
 
         try:

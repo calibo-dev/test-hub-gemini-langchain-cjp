@@ -169,17 +169,16 @@ A typical local setup for this LangChain template looks like:
 - Python in the supported range: `>=3.11,<3.13`
 - `uv` for dependency management
 - A configured LLM provider:
-  - `OPENAI` with `API_KEY_SECRET` or `OPENAI_API_KEY_SECRET`
-  - `ANTHROPICAI` with `API_KEY_SECRET` or `ANTHROPICAI_API_KEY_SECRET`
-  - `GEMINIAI` with `API_KEY_SECRET` or `GEMINIAI_API_KEY_SECRET`
+  - `OPENAI` with `OPENAI_API_KEY_SECRET`
+  - `ANTHROPICAI` with `ANTHROPICAI_API_KEY_SECRET`
+  - `GEMINIAI` with `GEMINIAI_API_KEY_SECRET`
   - or `OLLAMA` with a reachable `OLLAMA_BASE_URL`
 
 ### Secret Management
 
-- Set `API_KEY_SECRET` to resolve hosted provider API keys from the configured secret backend.
-- `OPENAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
-- `ANTHROPICAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
-- `GEMINIAI_API_KEY_SECRET` remains supported as a backward-compatible fallback when `API_KEY_SECRET` is not set.
+- Set `OPENAI_API_KEY_SECRET` to resolve the OpenAI API key from the configured secret backend.
+- Set `ANTHROPICAI_API_KEY_SECRET` to resolve the Anthropic API key from the configured secret backend.
+- Set `GEMINIAI_API_KEY_SECRET` to resolve the Gemini API key from the configured secret backend.
 - Set `CLOUD_PROVIDER=AWS` to retrieve secrets from AWS Secrets Manager.
 - Set `CLOUD_PROVIDER=AZURE` to retrieve secrets from Azure Key Vault.
 - When using AWS, configure `AWS_REGION` as needed.

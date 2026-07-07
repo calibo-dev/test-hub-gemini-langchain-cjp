@@ -261,17 +261,14 @@ The system uses environment variables to resolve runtime configuration.
     - `GEMINIAI`
     - `OLLAMA`
 
-- **`API_KEY_SECRET`**
-  - **Purpose**: Preferred secret name used to resolve hosted provider API keys from the configured secret manager
-
 - **`OPENAI_API_KEY_SECRET`**
-  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+  - **Purpose**: Secret name used to resolve the OpenAI API key from the configured secret manager
 
 - **`ANTHROPICAI_API_KEY_SECRET`**
-  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+  - **Purpose**: Secret name used to resolve the Anthropic API key from the configured secret manager
 
 - **`GEMINIAI_API_KEY_SECRET`**
-  - **Purpose**: Backward-compatible fallback secret name used when `API_KEY_SECRET` is not set
+  - **Purpose**: Secret name used to resolve the Gemini API key from the configured secret manager
 
 - **`CLOUD_PROVIDER`**
   - **Purpose**: Selects the secret backend

@@ -66,7 +66,6 @@ class Settings(BaseSettings):
     geminiai_api_key_secret: str = Field(default="", alias="GEMINIAI_API_KEY_SECRET")
 
     # Secret Manager
-    api_key_secret: str = Field(default="", alias="API_KEY_SECRET")
     cloud_provider: str = Field(default="", alias="CLOUD_PROVIDER")
     azure_key_vault_url: str = Field(default="", alias="AZURE_KEY_VAULT_URL")
 
