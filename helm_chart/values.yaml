@@ -42,6 +42,9 @@ ingress:
   controllerType: nginx
   nginxAnnotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   #nginxExtraAnnotations:
   ## Use below to use Traefik Ingress with middleware or trust store
   traefik: 
