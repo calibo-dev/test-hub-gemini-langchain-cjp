@@ -132,13 +132,21 @@ def get_llm_candidates(model_config: dict[str, Any]) -> list[Any]:
     """Return primary plus optional fallback LLMs for a stage."""
     candidates = [get_llm(model_config, section="primary")]
 
-    fallback_config = model_config.get("fallback") if isinstance(model_config, dict) else None
-    if fallback_config:
-        if not isinstance(fallback_config, dict):
-            raise ValueError("model.fallback must be a mapping when provided")
-        candidates.append(get_llm(model_config, section="fallback"))
+    candidates.extend(get_fallback_llms(model_config))
 
     return candidates
+
+
+def get_fallback_llms(model_config: dict[str, Any]) -> list[Any]:
+    """Return configured fallback LLMs without the primary model."""
+    fallback_config = model_config.get("fallback") if isinstance(model_config, dict) else None
+    if not fallback_config:
+        return []
+
+    if not isinstance(fallback_config, dict):
+        raise ValueError("model.fallback must be a mapping when provided")
+
+    return [get_llm(model_config, section="fallback")]
 
 
 def _get_model_section(model_config: dict[str, Any], section: str) -> dict[str, Any]:

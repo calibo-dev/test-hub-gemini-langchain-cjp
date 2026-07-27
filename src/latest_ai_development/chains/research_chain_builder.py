@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import logging
-
 from langchain_core.output_parsers import StrOutputParser
 
 from latest_ai_development.config.settings import get_stages_config
 from latest_ai_development.llm.llm_factory import get_llm_candidates
+from latest_ai_development.llm.model_attempt_logging import (
+    get_model_attempts,
+    with_model_attempt_logging,
+)
 from latest_ai_development.prompts.prompt_builder import build_research_prompt
 from latest_ai_development.tools.tool_registry import get_tools
-
-logger = logging.getLogger(__name__)
 
 
 def build_research_chain():
@@ -35,20 +35,6 @@ def build_research_chain():
     # Load tools
     tools = get_tools()
     model_config = stage_cfg.get("model")
-    primary_model = model_config.get("primary", {}) if isinstance(model_config, dict) else {}
-    fallback_model = model_config.get("fallback") if isinstance(model_config, dict) else None
-
-    logger.info(
-        "Trying primary model | stage=research | provider=%s | modelId=%s",
-        primary_model.get("provider"),
-        primary_model.get("modelId"),
-    )
-    if isinstance(fallback_model, dict):
-        logger.info(
-            "Trying fallback model | stage=research | provider=%s | modelId=%s",
-            fallback_model.get("provider"),
-            fallback_model.get("modelId"),
-        )
 
     llm_candidates = get_llm_candidates(model_config)
 
@@ -58,9 +44,11 @@ def build_research_chain():
 
     # Output parser
     parser = StrOutputParser()
+    primary_attempt, fallback_attempts = get_model_attempts("research", model_config)
+    attempts = [primary_attempt, *fallback_attempts]
     chains = [
-        prompt | llm | parser
-        for llm in llm_candidates
+        prompt | with_model_attempt_logging(llm, attempts[index], retry=index > 0) | parser
+        for index, llm in enumerate(llm_candidates)
     ]
 
     if len(chains) == 1:
