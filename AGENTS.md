@@ -45,14 +45,15 @@ Client → FastAPI → Workflow Controller → Research Stage → Reporting Stag
 
 ### LLM Provider Selection
 
-Controlled by the `PROVIDER` environment variable.
+Controlled by each stage's `model.primary` and optional `model.fallback`
+sections in `src/latest_ai_development/config/stages.yaml`.
 
-Supported providers:
+Supported provider values:
 
-- `OPENAI`
-- `ANTHROPICAI`
-- `GEMINIAI`
-- `OLLAMA`
+- `OpenAI`
+- `AnthropicAI`
+- `GeminiAI`
+- `Ollama`
 
 ### LLM Initialization
 
@@ -62,7 +63,9 @@ Location:
 
 `src/latest_ai_development/llm/llm_factory.py`
 
-The factory resolves provider configuration and returns the correct chat model.
+The factory reads stage-owned model configuration and returns the correct chat model.
+Builders wrap fallback models with LangChain `with_fallbacks` when a fallback
+section is present.
 
 ### Chain Construction
 
@@ -182,17 +185,22 @@ Defines stage order and workflow configuration.
 
 ---
 
-### models.yaml
+### Stage Model Configuration
 
 Location  
-`src/latest_ai_development/config/models.yaml`
+`src/latest_ai_development/config/stages.yaml`
 
 Purpose  
-Defines model settings such as:
+Defines each stage's mandatory primary model and optional fallback model:
 
-- model name
-- temperature
-- token limits
+- `model.primary.provider`
+- `model.primary.modelId`
+- `model.primary.generationDefaults`
+- `model.fallback.provider`
+- `model.fallback.modelId`
+- `model.fallback.generationDefaults`
+
+The runtime does not use a separate model defaults YAML file.
 
 ---
 
@@ -252,14 +260,6 @@ run_with_trigger '<json_payload>'
 ## Environment Variables
 
 The system uses environment variables to resolve runtime configuration.
-
-- **`PROVIDER`**
-  - **Purpose**: Selects the LLM provider
-  - **Supported Values**:
-    - `OPENAI`
-    - `ANTHROPICAI`
-    - `GEMINIAI`
-    - `OLLAMA`
 
 - **`OPENAI_API_KEY_SECRET`**
   - **Purpose**: Secret name used to resolve the OpenAI API key from the configured secret manager

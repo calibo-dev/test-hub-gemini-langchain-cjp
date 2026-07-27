@@ -34,7 +34,7 @@ def normalize_api_context(raw_context: str | None) -> str:
 
 
 def normalize_provider_name(provider: str | None) -> str:
-    """Return the canonical provider key used in models.yaml."""
+    """Return the canonical provider key used by the LLM factory."""
     provider_key = (provider or "").strip().lower()
     return PROVIDER_ALIASES.get(provider_key, provider_key)
 
@@ -52,9 +52,6 @@ class Settings(BaseSettings):
     app_env: str = Field(default="dev", alias="APP_ENV")
     debug: bool = Field(default=False, alias="DEBUG")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
-
-    # LLM Provider
-    provider: str = Field(default="OPENAI", alias="PROVIDER")
 
     # OpenAI
     openai_api_key_secret: str = Field(default="", alias="OPENAI_API_KEY_SECRET")
@@ -119,10 +116,6 @@ class Settings(BaseSettings):
     def stages_config_path(self) -> Path:
         return CONFIG_DIR / "stages.yaml"
 
-    @property
-    def models_config_path(self) -> Path:
-        return CONFIG_DIR / "models.yaml"
-
 
 # Runtime helpers
 def ensure_runtime_dirs(settings: Settings) -> None:
@@ -159,8 +152,3 @@ def get_workflow_config() -> dict[str, Any]:
 @lru_cache
 def get_stages_config() -> dict[str, Any]:
     return load_yaml_file(get_settings().stages_config_path)
-
-
-@lru_cache
-def get_models_config() -> dict[str, Any]:
-    return load_yaml_file(get_settings().models_config_path)

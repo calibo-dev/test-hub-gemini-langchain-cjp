@@ -5,7 +5,7 @@
 
 # LangChain Python Template
 
-A production-oriented LangChain template for **two-agent sequential orchestration** with FastAPI integration, provider-based model selection, and markdown report generation.
+A production-oriented LangChain template for **two-agent sequential orchestration** with FastAPI integration, stage-owned model selection, model fallback, and markdown report generation.
 
 ![Python](https://img.shields.io/badge/Python-black?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-black?logo=fastapi)
@@ -66,16 +66,19 @@ langchain template new langgraph-agent-template
 ├── src/
 │   └── latest_ai_development/
 │       ├── config/
-│       │   ├── agents.yaml            # Agent role configuration (roles/goals/backstories/instructions)
-│       │   ├── tasks.yaml             # Task configuration (descriptions/expected outputs/agent mapping)
-│       │   ├── models.yaml            # Provider-specific model defaults
+│       │   ├── workflow.yaml          # Stage order and output behavior
+│       │   ├── stages.yaml            # Stage prompts plus primary/fallback model config
+│       │   ├── validators.py          # Startup configuration validation
 │       │   └── settings.py            # Runtime settings loader for env/config paths
+│       ├── agents/                    # Tool-calling agent builders
+│       ├── chains/                    # LCEL chain builders
+│       ├── prompts/                   # Prompt construction helpers
+│       ├── stages/                    # Stage classes and registry
 │       ├── tools/
 │       │   ├── __init__.py            # Tool exports
 │       │   └── custom_tool.py         # Example LangChain-compatible tool implementation
 │       ├── __init__.py                # Package exports and version metadata
 │       ├── workflow.py                # Main LangChain two-agent orchestration logic
-│       ├── prompts.py                 # Prompt construction for both agents
 │       ├── main.py                    # FastAPI application and CLI entrypoints
 │       └── secrets_manager.py         # AWS Secrets Manager / Azure Key Vault integration
 ├── knowledge/
@@ -100,7 +103,7 @@ langchain template new langgraph-agent-template
 
 Conventions used (based on the available code):
 - **src/ layout**: application code lives under `src/latest_ai_development/`.
-- **YAML-driven configuration**: agent roles, task behavior, and model/provider defaults are externalized into `config/*.yaml`.
+- **YAML-driven configuration**: stage prompts, stage order, and primary/fallback model settings are externalized into `config/*.yaml`.
 - **Generated artifacts**: `report.md` is the final markdown report produced by the two-agent orchestration.
 
 ## 4. Key Files and Configuration
@@ -115,22 +118,22 @@ Conventions used (based on the available code):
   Defines the FastAPI app, health endpoint, `/ask` endpoint, and CLI entry functions (`run`, `train`, `replay`, `test`, `run_with_trigger`). Incorrect edits can break API routes, server startup, or command execution.
 
 - **`src/latest_ai_development/workflow.py`**  
-  Implements the main LangChain two-agent sequential orchestration. Incorrect edits can break agent coordination, topic handoff, provider/model selection, or markdown report generation.
+  Implements the main LangChain two-agent sequential orchestration. Incorrect edits can break agent coordination, topic handoff, output saving, or markdown report generation.
 
-- **`src/latest_ai_development/prompts.py`**  
-  Defines the prompt construction used by the researcher and reporting analyst agents. Incorrect edits can degrade output quality, break formatting expectations, or weaken agent/task alignment.
+- **`src/latest_ai_development/prompts/prompt_builder.py`**
+  Defines prompt construction used by the researcher and reporting analyst stages. Incorrect edits can degrade output quality, break formatting expectations, or weaken stage/task alignment.
 
-- **`src/latest_ai_development/config/agents.yaml`**  
-  Defines agent role configuration, including role, goal, backstory, and behavioral instructions for the researcher and reporting analyst.
+- **`src/latest_ai_development/config/workflow.yaml`**
+  Defines workflow stage order and output persistence behavior.
 
-- **`src/latest_ai_development/config/tasks.yaml`**  
-  Defines task configuration, including descriptions, expected outputs, and the sequential handoff between the two agents.
-
-- **`src/latest_ai_development/config/models.yaml`**  
-  Defines model/provider defaults used by the orchestration layer, including OpenAI and Ollama settings.
+- **`src/latest_ai_development/config/stages.yaml`**
+  Defines stage prompts, instructions, tool flags, and mandatory `model.primary` plus optional `model.fallback` configuration for each stage.
 
 - **`src/latest_ai_development/config/settings.py`**  
-  Resolves runtime configuration from environment variables, including provider selection, host/port, context path, output path, and config file locations.
+  Resolves runtime configuration from environment variables, including host/port, context path, output path, secret names, and config file locations.
+
+- **`src/latest_ai_development/llm/llm_factory.py`**
+  Builds LangChain chat models from each stage's `model.primary` or `model.fallback` section.
 
 - **`src/latest_ai_development/secrets_manager.py`**  
   Provides secret resolution support for AWS Secrets Manager and Azure Key Vault. Incorrect edits can cause runtime authentication or configuration failures.
@@ -168,11 +171,12 @@ A typical local setup for this LangChain template looks like:
 
 - Python in the supported range: `>=3.11,<3.13`
 - `uv` for dependency management
-- A configured LLM provider:
-  - `OPENAI` with `OPENAI_API_KEY_SECRET`
-  - `ANTHROPICAI` with `ANTHROPICAI_API_KEY_SECRET`
-  - `GEMINIAI` with `GEMINIAI_API_KEY_SECRET`
-  - or `OLLAMA` with a reachable `OLLAMA_BASE_URL`
+- Stage model configuration in `src/latest_ai_development/config/stages.yaml`.
+- Secret configuration for the providers referenced by stage model sections:
+  - `OpenAI` with `OPENAI_API_KEY_SECRET`
+  - `AnthropicAI` with `ANTHROPICAI_API_KEY_SECRET`
+  - `GeminiAI` with `GEMINIAI_API_KEY_SECRET`
+  - or `Ollama` with a reachable `OLLAMA_BASE_URL`
 
 ### Secret Management
 
@@ -190,6 +194,29 @@ A typical local setup for this LangChain template looks like:
 
 Each request/run also emits a `flow_run_id` in the API response so you can correlate a user request with the matching log lines.
 
+### Stage Model Fallback
+
+Every configured workflow stage must define `model.primary` in `stages.yaml`.
+`model.fallback` is optional; when present, the stage builder creates a fallback
+Runnable with the same prompt, parser, and tools as the primary path.
+
+```yaml
+research:
+  model:
+    primary:
+      provider: OpenAI
+      modelId: gpt-4.1-mini
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.7
+        maxOutputTokens: 4000
+    fallback:
+      provider: OpenAI
+      modelId: gpt-4.1-nano
+      generationDefaults:
+        temperature: 0.7
+```
+
 ### Install Dependencies
 
 ```bash
@@ -202,8 +229,8 @@ PYTHONPATH=src uv run python -m latest_ai_development.main
 
 ## 6. Development Guidelines
 
-- **Keep orchestration logic in `workflow.py`, not in `main.py`.** `main.py` should remain a lightweight API and CLI entry layer, while `workflow.py` should own agent coordination, provider selection, and output generation.
-- **Prefer YAML-driven changes for behavioral adjustments.** Agent roles, task behavior, and model/provider defaults should be maintained in `src/latest_ai_development/config/*.yaml`. Reserve code changes for orchestration, integrations, and runtime behavior.
+- **Keep orchestration logic in `workflow.py`, not in `main.py`.** `main.py` should remain a lightweight API and CLI entry layer, while `workflow.py` should own stage coordination and output generation.
+- **Prefer YAML-driven changes for behavioral adjustments.** Stage prompts, stage behavior, and primary/fallback model config should be maintained in `src/latest_ai_development/config/*.yaml`. Reserve code changes for orchestration, integrations, and runtime behavior.
 - **Follow the `src/` layout consistently.** Imports and local execution rely on `PYTHONPATH=src`, and this convention should remain aligned across development, testing, and containerized execution.
 - **Handle generated artifacts carefully.** `report.md` is the final output produced by the reporting agent. Changing output paths, filenames, or write logic in `workflow.py` or `settings.py` can affect downstream usage and automation.
 - **Treat deployment and CI files as controlled assets.** Helm and Jenkins files appear to be standardized delivery templates; incorrect changes can break packaging, deployment, or CI/CD flows.
