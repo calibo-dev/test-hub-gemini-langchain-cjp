@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+
 from langchain_core.output_parsers import StrOutputParser
 
 from latest_ai_development.config.settings import get_stages_config
-from latest_ai_development.llm.llm_factory import get_llm
+from latest_ai_development.llm.llm_factory import get_llm_candidates
 from latest_ai_development.prompts.prompt_builder import build_research_prompt
 from latest_ai_development.tools.tool_registry import get_tools
+
+logger = logging.getLogger(__name__)
 
 
 def build_research_chain():
@@ -28,24 +32,38 @@ def build_research_chain():
 
     # Stage configuration flags
     use_tools = stage_cfg.get("use_tools", True)
-    temperature_override = stage_cfg.get("temperature_override")
-
-    # Load LLM
-    llm = get_llm(
-        temperature=temperature_override
-    ) if temperature_override else get_llm()
-
     # Load tools
     tools = get_tools()
+    model_config = stage_cfg.get("model")
+    primary_model = model_config.get("primary", {}) if isinstance(model_config, dict) else {}
+    fallback_model = model_config.get("fallback") if isinstance(model_config, dict) else None
+
+    logger.info(
+        "Trying primary model | stage=research | provider=%s | modelId=%s",
+        primary_model.get("provider"),
+        primary_model.get("modelId"),
+    )
+    if isinstance(fallback_model, dict):
+        logger.info(
+            "Trying fallback model | stage=research | provider=%s | modelId=%s",
+            fallback_model.get("provider"),
+            fallback_model.get("modelId"),
+        )
+
+    llm_candidates = get_llm_candidates(model_config)
 
     # Enable tool calling only if configured
     if use_tools and tools:
-        llm = llm.bind_tools(tools)
+        llm_candidates = [llm.bind_tools(tools) for llm in llm_candidates]
 
     # Output parser
     parser = StrOutputParser()
+    chains = [
+        prompt | llm | parser
+        for llm in llm_candidates
+    ]
 
-    # Runnable pipeline
-    chain = prompt | llm | parser
+    if len(chains) == 1:
+        return chains[0]
 
-    return chain
+    return chains[0].with_fallbacks(chains[1:])

@@ -6,13 +6,11 @@ from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
-from latest_ai_development.config.settings import (
-    get_models_config,
-    get_settings,
-    normalize_provider_name,
-)
+from latest_ai_development.config.settings import get_settings, normalize_provider_name
 
 load_dotenv()
+
+SUPPORTED_PROVIDERS = ("OpenAI", "AnthropicAI", "GeminiAI", "Ollama")
 
 
 def resolve_api_key(
@@ -31,44 +29,32 @@ def resolve_api_key(
     return (SecretsManager().get_secret(secret_name) or "").strip()
 
 
-def get_llm(**overrides: Any):
-    """
-    Create an LLM instance based on configuration.
+def get_llm(model_config: dict[str, Any], section: str = "primary"):
+    """Create one LLM from a stage-level model section.
 
-    Supports:
-    - OpenAI
-    - Anthropic
-    - Gemini
-    - Ollama
+    `model_config` is expected to come from `stages.yaml`:
+
+        model:
+          primary:
+            provider: OpenAI
+            modelId: gpt-4.1-mini
+            generationDefaults: {}
+          fallback:
+            provider: OpenAI
+            modelId: gpt-4.1-nano
+            generationDefaults: {}
     """
+
+    section_config = _get_model_section(model_config, section)
+    raw_provider = _required_string(section_config, "provider", f"model.{section}.provider")
+    provider = normalize_provider_name(raw_provider)
+    model_name = _required_string(section_config, "modelId", f"model.{section}.modelId")
+    generation_defaults = section_config.get("generationDefaults") or {}
+    if not isinstance(generation_defaults, dict):
+        raise ValueError(f"model.{section}.generationDefaults must be a mapping when provided")
 
     settings = get_settings()
-    models_config = get_models_config()
 
-    provider = normalize_provider_name(settings.provider)
-
-    providers = models_config.get("providers", {})
-    provider_config = providers.get(provider)
-
-    if not provider_config:
-        raise ValueError(f"Provider '{settings.provider}' not configured in models.yaml")
-
-    model_name = overrides.get(
-        "model_name",
-        provider_config.get("chat_model"),
-    )
-
-    temperature = overrides.get(
-        "temperature",
-        provider_config.get("temperature", 0.7),
-    )
-
-    max_tokens = overrides.get(
-        "max_tokens",
-        provider_config.get("max_tokens"),
-    )
-
-    # OPENAI
     if provider == "openai":
 
         api_key = resolve_api_key(getattr(settings, "openai_api_key_secret", ""))
@@ -80,12 +66,10 @@ def get_llm(**overrides: Any):
             )
 
         return ChatOpenAI(
-            model=model_name,
-            temperature=temperature,
+            **_openai_kwargs(model_name, generation_defaults),
             api_key=api_key,
         )
 
-    # ANTHROPIC
     if provider == "anthropicai":
 
         api_key = resolve_api_key(getattr(settings, "anthropicai_api_key_secret", ""))
@@ -104,17 +88,11 @@ def get_llm(**overrides: Any):
                 "Run `uv sync` to install template dependencies."
             ) from exc
 
-        model_kwargs = {
-            "model": model_name,
-            "temperature": temperature,
-            "api_key": api_key,
-        }
-        if max_tokens is not None:
-            model_kwargs["max_tokens"] = max_tokens
+        return ChatAnthropic(
+            **_anthropic_kwargs(model_name, generation_defaults),
+            api_key=api_key,
+        )
 
-        return ChatAnthropic(**model_kwargs)
-
-    # GEMINI
     if provider == "geminiai":
 
         api_key = resolve_api_key(getattr(settings, "geminiai_api_key_secret", ""))
@@ -133,23 +111,98 @@ def get_llm(**overrides: Any):
                 "Run `uv sync` to install template dependencies."
             ) from exc
 
-        model_kwargs = {
-            "model": model_name,
-            "temperature": temperature,
-            "api_key": api_key,
-        }
-        if max_tokens is not None:
-            model_kwargs["max_tokens"] = max_tokens
+        return ChatGoogleGenerativeAI(
+            **_gemini_kwargs(model_name, generation_defaults),
+            api_key=api_key,
+        )
 
-        return ChatGoogleGenerativeAI(**model_kwargs)
-
-    # OLLAMA
     if provider == "ollama":
 
         return ChatOllama(
-            model=model_name,
-            temperature=temperature,
+            **_ollama_kwargs(model_name, generation_defaults),
             base_url=settings.ollama_base_url,
         )
 
-    raise ValueError(f"Unsupported provider: {provider}")
+    raise ValueError(
+        f"Unsupported provider '{raw_provider}'. Expected one of: {', '.join(SUPPORTED_PROVIDERS)}"
+    )
+
+
+def get_llm_candidates(model_config: dict[str, Any]) -> list[Any]:
+    """Return primary plus optional fallback LLMs for a stage."""
+    candidates = [get_llm(model_config, section="primary")]
+
+    fallback_config = model_config.get("fallback") if isinstance(model_config, dict) else None
+    if fallback_config:
+        if not isinstance(fallback_config, dict):
+            raise ValueError("model.fallback must be a mapping when provided")
+        candidates.append(get_llm(model_config, section="fallback"))
+
+    return candidates
+
+
+def _get_model_section(model_config: dict[str, Any], section: str) -> dict[str, Any]:
+    if not isinstance(model_config, dict):
+        raise ValueError("stages.yaml stage model config must be a mapping")
+
+    section_config = model_config.get(section)
+    if not isinstance(section_config, dict):
+        raise ValueError(f"stages.yaml stage must define model.{section}")
+
+    return section_config
+
+
+def _required_string(config: dict[str, Any], key: str, label: str) -> str:
+    value = config.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"stages.yaml stage must define {label}")
+    return value.strip()
+
+
+def _apply_common_generation_defaults(kwargs: dict[str, Any], defaults: dict[str, Any]) -> None:
+    if "temperature" in defaults:
+        kwargs["temperature"] = defaults["temperature"]
+    if "topP" in defaults:
+        kwargs["top_p"] = defaults["topP"]
+
+
+def _openai_kwargs(model_name: str, defaults: dict[str, Any]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"model": model_name}
+    _apply_common_generation_defaults(kwargs, defaults)
+
+    if "maxOutputTokens" in defaults:
+        kwargs["max_tokens"] = defaults["maxOutputTokens"]
+    if "presencePenalty" in defaults:
+        kwargs["presence_penalty"] = defaults["presencePenalty"]
+    if "frequencyPenalty" in defaults:
+        kwargs["frequency_penalty"] = defaults["frequencyPenalty"]
+
+    response_format = defaults.get("responseFormat")
+    if isinstance(response_format, dict):
+        kwargs["model_kwargs"] = {"response_format": response_format}
+
+    return kwargs
+
+
+def _anthropic_kwargs(model_name: str, defaults: dict[str, Any]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"model": model_name}
+    _apply_common_generation_defaults(kwargs, defaults)
+    if "maxOutputTokens" in defaults:
+        kwargs["max_tokens"] = defaults["maxOutputTokens"]
+    return kwargs
+
+
+def _gemini_kwargs(model_name: str, defaults: dict[str, Any]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"model": model_name}
+    _apply_common_generation_defaults(kwargs, defaults)
+    if "maxOutputTokens" in defaults:
+        kwargs["max_output_tokens"] = defaults["maxOutputTokens"]
+    return kwargs
+
+
+def _ollama_kwargs(model_name: str, defaults: dict[str, Any]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"model": model_name}
+    _apply_common_generation_defaults(kwargs, defaults)
+    if "maxOutputTokens" in defaults:
+        kwargs["num_predict"] = defaults["maxOutputTokens"]
+    return kwargs

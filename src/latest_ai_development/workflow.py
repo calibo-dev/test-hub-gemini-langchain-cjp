@@ -39,9 +39,8 @@ class LatestAiDevelopmentWorkflow:
         context["flow_run_id"] = flow_run_id
 
         logger.info(
-            "Workflow started | flow_run_id=%s | provider=%s | stages=%s",
+            "Workflow started | flow_run_id=%s | stages=%s",
             flow_run_id,
-            getattr(self.settings, "provider", "unknown"),
             self.stage_order,
         )
 

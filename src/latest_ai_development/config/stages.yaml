@@ -18,7 +18,21 @@ research:
 
   use_tools: true
   use_retrieval: false
-  temperature_override: null
+  model:
+    primary:
+      provider: OpenAI
+      modelId: gpt-4.1-mini
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.7
+        maxOutputTokens: 4000
+    fallback:
+      provider: OpenAI
+      modelId: gpt-4.1-nano
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.7
+        maxOutputTokens: 4000
 
 
 reporting:
@@ -31,5 +45,18 @@ reporting:
     - Avoid unsupported claims
     - Keep the report easy to scan
     - Use clear headings and sections
-
-  temperature_override: 0.3
+  model:
+    primary:
+      provider: OpenAI
+      modelId: gpt-4.1-mini
+      generationDefaults:
+        temperature: 0.3
+        topP: 0.7
+        maxOutputTokens: 4000
+    fallback:
+      provider: OpenAI
+      modelId: gpt-4.1-nano
+      generationDefaults:
+        temperature: 0.3
+        topP: 0.7
+        maxOutputTokens: 4000

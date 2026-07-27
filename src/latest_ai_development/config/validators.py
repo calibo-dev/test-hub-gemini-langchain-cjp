@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from latest_ai_development.config.settings import (
-    get_models_config,
-    get_settings,
     get_stages_config,
     get_workflow_config,
-    normalize_provider_name,
 )
 from latest_ai_development.stages.stage_registry import STAGE_REGISTRY
 
@@ -21,7 +19,7 @@ def validate_configuration() -> None:
     Checks:
     - workflow.yaml stage references
     - stages.yaml prompt definitions
-    - models.yaml provider configuration
+    - stages.yaml model.primary/model.fallback configuration
     """
 
     validate_stage_configuration()
@@ -68,34 +66,55 @@ def validate_stage_configuration() -> None:
 
 
 def validate_model_configuration() -> None:
-    """
-    Validate models.yaml and environment provider configuration.
-    """
+    """Validate stage-owned model configuration."""
 
-    settings = get_settings()
-    models_cfg = get_models_config()
+    workflow_cfg = get_workflow_config()
+    stages_cfg = get_stages_config()
 
-    default_provider = normalize_provider_name(models_cfg.get("default_provider"))
-    providers = models_cfg.get("providers", {})
+    for stage_name in workflow_cfg.get("stages", []) or []:
+        stage_cfg = stages_cfg.get(stage_name)
+        if not isinstance(stage_cfg, dict):
+            continue
 
-    if not providers:
-        raise ValueError("models.yaml must define at least one provider")
+        model_cfg = stage_cfg.get("model")
+        if not isinstance(model_cfg, dict):
+            raise ValueError(f"stages.yaml stage '{stage_name}' must define model.primary")
 
-    if default_provider not in providers:
+        _validate_model_section(stage_name, model_cfg, "primary", required=True)
+        _validate_model_section(stage_name, model_cfg, "fallback", required=False)
+
+
+def _validate_model_section(
+    stage_name: str,
+    model_cfg: dict[str, Any],
+    section: str,
+    *,
+    required: bool,
+) -> None:
+    section_cfg = model_cfg.get(section)
+    if section_cfg is None:
+        if required:
+            raise ValueError(f"stages.yaml stage '{stage_name}' must define model.{section}")
+        return
+
+    if not isinstance(section_cfg, dict):
+        raise ValueError(f"stages.yaml stage '{stage_name}' model.{section} must be a mapping")
+
+    provider = section_cfg.get("provider")
+    if not isinstance(provider, str) or not provider.strip():
         raise ValueError(
-            f"default_provider '{default_provider}' is not defined in models.yaml providers"
+            f"stages.yaml stage '{stage_name}' model.{section}.provider is required"
         )
 
-    env_provider = normalize_provider_name(settings.provider)
-
-    if env_provider not in providers:
+    model_id = section_cfg.get("modelId")
+    if not isinstance(model_id, str) or not model_id.strip():
         raise ValueError(
-            f"Environment PROVIDER '{env_provider}' not defined in models.yaml providers"
+            f"stages.yaml stage '{stage_name}' model.{section}.modelId is required"
         )
 
-    provider_cfg = providers.get(env_provider)
-
-    if not provider_cfg.get("chat_model"):
+    generation_defaults = section_cfg.get("generationDefaults")
+    if generation_defaults is not None and not isinstance(generation_defaults, dict):
         raise ValueError(
-            f"Provider '{env_provider}' must define 'chat_model' in models.yaml"
+            f"stages.yaml stage '{stage_name}' model.{section}.generationDefaults "
+            "must be a mapping"
         )
