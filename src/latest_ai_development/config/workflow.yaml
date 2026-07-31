@@ -7,7 +7,7 @@ stages:
 
 execution:
   mode: sequential
-  save_output: true
+  save_output: false
 
 output:
   file: report.md
