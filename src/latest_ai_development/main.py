@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from latest_ai_development.config.settings import get_settings
 from latest_ai_development.config.validators import validate_configuration
 from latest_ai_development.logging_utils import configure_logging
-from latest_ai_development.tracking import initialize_langsmith_tracing
+from latest_ai_development.tracing import initialize_langsmith_tracing
 from latest_ai_development.workflow import LatestAiDevelopmentWorkflow
 
 # Load settings
