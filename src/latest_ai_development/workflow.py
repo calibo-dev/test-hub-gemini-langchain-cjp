@@ -7,7 +7,11 @@ from uuid import uuid4
 from latest_ai_development.config.settings import get_settings, get_workflow_config
 from latest_ai_development.logging_utils import configure_logging
 from latest_ai_development.stages.stage_registry import STAGE_REGISTRY
-from latest_ai_development.tracking import initialize_langsmith_tracing
+from latest_ai_development.tracing import (
+    initialize_langsmith_tracing,
+    trace_stage_execution,
+    trace_workflow,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +34,14 @@ class LatestAiDevelopmentWorkflow:
             raise ValueError("workflow.yaml must define at least one stage")
 
     def kickoff(self, inputs: dict, flow_run_id: str | None = None):
+        initialize_langsmith_tracing()
+        return self._kickoff_traced(inputs, flow_run_id=flow_run_id)
+
+    @trace_workflow()
+    def _kickoff_traced(self, inputs: dict, flow_run_id: str | None = None):
         flow_run_id = str(flow_run_id or inputs.get("flow_run_id") or uuid4().hex[:12]).strip()
         if not flow_run_id:
             flow_run_id = uuid4().hex[:12]
-        initialize_langsmith_tracing()
 
         context = dict(inputs)
         context["flow_run_id"] = flow_run_id
@@ -90,7 +98,12 @@ class LatestAiDevelopmentWorkflow:
             )
             execute_started_at = time.perf_counter()
             try:
-                result = stage.invoke(context)
+                result = trace_stage_execution(
+                    stage_name,
+                    stage_component,
+                    stage.invoke,
+                    context,
+                )
             except Exception:
                 logger.exception(
                     "Stage execution failed | flow_run_id=%s | stage=%s | "

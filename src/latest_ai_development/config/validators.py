@@ -11,6 +11,8 @@ from latest_ai_development.stages.stage_registry import STAGE_REGISTRY
 
 logger = logging.getLogger(__name__)
 
+_RESERVED_STAGE_CONFIG_KEYS = {"tracing"}
+
 
 def validate_configuration() -> None:
     """
@@ -20,6 +22,7 @@ def validate_configuration() -> None:
     - workflow.yaml stage references
     - stages.yaml prompt definitions
     - stages.yaml model.primary/model.fallback configuration
+    - optional tracing metadata alignment
     """
 
     validate_stage_configuration()
@@ -39,7 +42,11 @@ def validate_stage_configuration() -> None:
 
     workflow_stages = set(workflow_cfg.get("stages", []))
     registry_stages: set[str] = set(STAGE_REGISTRY.keys())
-    config_stages: set[str] = set(stages_cfg.keys())
+    config_stages: set[str] = {
+        stage_name
+        for stage_name in stages_cfg.keys()
+        if stage_name not in _RESERVED_STAGE_CONFIG_KEYS
+    }
 
     # 1. workflow.yaml must reference registered stages
     unknown_registry = workflow_stages - registry_stages
@@ -62,6 +69,56 @@ def validate_stage_configuration() -> None:
         logger.warning(
             "[Warning] stages.yaml contains configs not used in workflow.yaml: "
             f"{sorted(unused_configs)}"
+        )
+
+    validate_tracing_configuration(workflow_stages, stages_cfg.get("tracing", {}))
+
+
+def validate_tracing_configuration(
+    workflow_stages: set[str],
+    tracing_cfg: object,
+) -> None:
+    """
+    Validate optional tracing metadata.
+
+    Missing tracing entries only warn because generated stages can fall back to
+    dynamic default trace names.
+    """
+
+    if not isinstance(tracing_cfg, dict):
+        return
+
+    traced_stage_names: set[str] = set()
+
+    direct_stage_cfgs = tracing_cfg.get("stages", {})
+    if isinstance(direct_stage_cfgs, dict):
+        traced_stage_names.update(
+            stage_name
+            for stage_name, stage_cfg in direct_stage_cfgs.items()
+            if isinstance(stage_cfg, dict)
+        )
+
+    traced_stage_names.update(
+        stage_name
+        for stage_name, stage_cfg in tracing_cfg.items()
+        if stage_name not in {"workflow", "stages"} and isinstance(stage_cfg, dict)
+    )
+
+    if not traced_stage_names:
+        return
+
+    missing_trace_config = workflow_stages - traced_stage_names
+    if missing_trace_config:
+        logger.warning(
+            "[Warning] tracing config is missing entries for workflow stages: "
+            f"{sorted(missing_trace_config)}"
+        )
+
+    unused_trace_config = traced_stage_names - workflow_stages
+    if unused_trace_config:
+        logger.warning(
+            "[Warning] tracing config contains entries not used in workflow.yaml: "
+            f"{sorted(unused_trace_config)}"
         )
 
 
