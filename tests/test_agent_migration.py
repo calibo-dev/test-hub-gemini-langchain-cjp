@@ -108,6 +108,8 @@ def test_reporting_stage_passes_runtime_context(monkeypatch):
 def test_workflow_writes_report_when_save_output_enabled(monkeypatch, tmp_path):
     from latest_ai_development import workflow as module
 
+    monkeypatch.setenv("DEBUG", "false")
+
     class ResearchStage:
         def invoke(self, context):
             return {"research_notes": "notes"}
@@ -144,6 +146,8 @@ def test_workflow_writes_report_when_save_output_enabled(monkeypatch, tmp_path):
 def test_workflow_does_not_write_report_when_save_output_disabled(monkeypatch, tmp_path):
     from latest_ai_development import workflow as module
 
+    monkeypatch.setenv("DEBUG", "false")
+
     class ReportingStage:
         def invoke(self, context):
             return {"report": "unsaved report"}
@@ -168,6 +172,8 @@ def test_workflow_does_not_write_report_when_save_output_disabled(monkeypatch, t
 
 def test_workflow_logs_stage_failure_with_flow_run_id(monkeypatch, caplog, tmp_path):
     from latest_ai_development import workflow as module
+
+    monkeypatch.setenv("DEBUG", "false")
 
     class FailingStage:
         component_name = "research_agent"
@@ -318,25 +324,21 @@ def test_get_llm_builds_anthropic_provider(monkeypatch):
         module,
         "get_settings",
         lambda: SimpleNamespace(
-            provider="ANTHROPICAI",
             anthropicai_api_key_secret="anthropic-secret",
         ),
     )
-    monkeypatch.setattr(
-        module,
-        "get_models_config",
-        lambda: {
-            "providers": {
-                "anthropicai": {
-                    "chat_model": "claude-test",
+    llm = module.get_llm(
+        {
+            "primary": {
+                "provider": "ANTHROPICAI",
+                "modelId": "claude-test",
+                "generationDefaults": {
                     "temperature": 0.2,
-                    "max_tokens": 123,
-                }
+                    "maxOutputTokens": 123,
+                },
             }
-        },
+        }
     )
-
-    llm = module.get_llm()
 
     assert isinstance(llm, FakeChatAnthropic)
     assert llm.kwargs == {
@@ -368,30 +370,27 @@ def test_get_llm_builds_gemini_provider_alias(monkeypatch):
     monkeypatch.setattr(
         module,
         "get_settings",
-        lambda: SimpleNamespace(provider="GEMINI", geminiai_api_key_secret="gemini-secret"),
+        lambda: SimpleNamespace(geminiai_api_key_secret="gemini-secret"),
     )
-    monkeypatch.setattr(
-        module,
-        "get_models_config",
-        lambda: {
-            "providers": {
-                "geminiai": {
-                    "chat_model": "gemini-test",
+    llm = module.get_llm(
+        {
+            "primary": {
+                "provider": "GEMINI",
+                "modelId": "gemini-test",
+                "generationDefaults": {
                     "temperature": 0.4,
-                    "max_tokens": 456,
-                }
+                    "maxOutputTokens": 456,
+                },
             }
-        },
+        }
     )
-
-    llm = module.get_llm()
 
     assert isinstance(llm, FakeChatGoogleGenerativeAI)
     assert llm.kwargs == {
         "model": "gemini-test",
         "temperature": 0.4,
         "api_key": "gemini-key",
-        "max_tokens": 456,
+        "max_output_tokens": 456,
     }
 
 
@@ -405,7 +404,6 @@ def test_fastapi_root_path_uses_context_prefix(monkeypatch):
     settings_module.get_settings.cache_clear()
     settings_module.get_workflow_config.cache_clear()
     settings_module.get_stages_config.cache_clear()
-    settings_module.get_models_config.cache_clear()
 
     if "latest_ai_development.main" in sys.modules:
         main = importlib.reload(sys.modules["latest_ai_development.main"])
@@ -431,7 +429,6 @@ def test_fastapi_api_root_path_overrides_context(monkeypatch):
     settings_module.get_settings.cache_clear()
     settings_module.get_workflow_config.cache_clear()
     settings_module.get_stages_config.cache_clear()
-    settings_module.get_models_config.cache_clear()
 
     if "latest_ai_development.main" in sys.modules:
         main = importlib.reload(sys.modules["latest_ai_development.main"])
