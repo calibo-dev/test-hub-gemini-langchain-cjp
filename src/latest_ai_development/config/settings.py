@@ -18,6 +18,7 @@ DEFAULT_CONTEXT_DIR = BASE_DIR / "knowledge"
 PROVIDER_ALIASES = {
     "anthropic": "anthropicai",
     "gemini": "geminiai",
+    "bedrock": "bedrockai",
 }
 
 
@@ -61,6 +62,9 @@ class Settings(BaseSettings):
 
     # Gemini
     geminiai_api_key_secret: str = Field(default="", alias="GEMINIAI_API_KEY_SECRET")
+
+    # Bedrock
+    bedrockai_api_key_secret: str = Field(default="", alias="BEDROCK_AI_API_KEY_SECRET")
 
     # Secret Manager
     cloud_provider: str = Field(default="", alias="CLOUD_PROVIDER")
