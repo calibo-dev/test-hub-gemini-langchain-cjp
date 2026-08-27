@@ -300,6 +300,9 @@ def test_normalize_provider_name_supports_crewai_provider_names():
     assert normalize_provider_name("ANTHROPIC") == "anthropicai"
     assert normalize_provider_name("GEMINIAI") == "geminiai"
     assert normalize_provider_name("GEMINI") == "geminiai"
+    assert normalize_provider_name("AWSBedrock") == "bedrockai"
+    assert normalize_provider_name("BEDROCK") == "bedrockai"
+    assert normalize_provider_name("BEDROCKAI") == "bedrockai"
 
 
 def test_get_llm_builds_anthropic_provider(monkeypatch):
@@ -391,6 +394,59 @@ def test_get_llm_builds_gemini_provider_alias(monkeypatch):
         "temperature": 0.4,
         "api_key": "gemini-key",
         "max_output_tokens": 456,
+    }
+
+
+def test_get_llm_builds_aws_bedrock_provider_alias(monkeypatch):
+    from latest_ai_development.llm import llm_factory as module
+
+    model_arn = (
+        "arn:aws:bedrock:us-east-1:123456789012:"
+        "inference-profile/us.anthropic.claude.opus-5"
+    )
+
+    class FakeChatBedrockConverse:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeSecretsManager:
+        def get_secret(self, secret_name, secret_key=None):
+            assert secret_name == "bedrock-ai-api-key-secret"
+            return "bedrock-bearer-token"
+
+    monkeypatch.setitem(
+        sys.modules,
+        "langchain_aws",
+        SimpleNamespace(ChatBedrockConverse=FakeChatBedrockConverse),
+    )
+    monkeypatch.setattr(secrets_module, "SecretsManager", FakeSecretsManager)
+    monkeypatch.setattr(
+        module,
+        "get_settings",
+        lambda: SimpleNamespace(bedrockai_api_key_secret="bedrock-ai-api-key-secret"),
+    )
+    llm = module.get_llm(
+        {
+            "primary": {
+                "provider": "BEDROCKAI",
+                "modelId": model_arn,
+                "generationDefaults": {
+                    "maxOutputTokens": 789,
+                },
+            }
+        }
+    )
+
+    assert isinstance(llm, FakeChatBedrockConverse)
+    assert llm.kwargs == {
+        "model": model_arn,
+        "temperature": 0.3,
+        "top_p": 0.8,
+        "max_tokens": 789,
+        "additional_model_request_fields": {
+            "thinking": {"type": "enabled", "budget_tokens": 128},
+        },
+        "api_key": "bedrock-bearer-token",
     }
 
 

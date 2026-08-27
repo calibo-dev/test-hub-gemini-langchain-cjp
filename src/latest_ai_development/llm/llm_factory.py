@@ -10,7 +10,7 @@ from latest_ai_development.config.settings import get_settings, normalize_provid
 
 load_dotenv()
 
-SUPPORTED_PROVIDERS = ("OpenAI", "AnthropicAI", "GeminiAI", "Ollama")
+SUPPORTED_PROVIDERS = ("OpenAI", "AnthropicAI", "GeminiAI", "BedrockAI", "Ollama")
 
 
 def resolve_api_key(
@@ -116,6 +116,28 @@ def get_llm(model_config: dict[str, Any], section: str = "primary"):
             api_key=api_key,
         )
 
+    if provider == "bedrockai":
+
+        api_key = resolve_api_key(getattr(settings, "bedrockai_api_key_secret", ""))
+
+        if not api_key:
+            raise ValueError(
+                "BedrockAI API key not found. "
+                "Set BEDROCK_AI_API_KEY_SECRET."
+            )
+        try:
+            from langchain_aws import ChatBedrockConverse
+        except ImportError as exc:
+            raise ImportError(
+                "AWS Bedrock provider requires the 'langchain-aws' package. "
+                "Run `uv sync` to install template dependencies."
+            ) from exc
+
+        return ChatBedrockConverse(
+            **_bedrock_kwargs(model_name, generation_defaults),
+            api_key=api_key,
+        )
+
     if provider == "ollama":
 
         return ChatOllama(
@@ -207,6 +229,16 @@ def _gemini_kwargs(model_name: str, defaults: dict[str, Any]) -> dict[str, Any]:
         kwargs["max_output_tokens"] = defaults["maxOutputTokens"]
     return kwargs
 
+def _bedrock_kwargs(model_name: str, defaults: dict[str, Any]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"model": model_name}
+    _apply_common_generation_defaults(kwargs, defaults)
+    if "maxOutputTokens" in defaults:
+        kwargs["max_tokens"] = defaults["maxOutputTokens"]
+
+    additional_model_request_fields = defaults.get("additionalModelRequestFields")
+    if isinstance(additional_model_request_fields, dict):
+        kwargs["additional_model_request_fields"] = additional_model_request_fields
+    return kwargs
 
 def _ollama_kwargs(model_name: str, defaults: dict[str, Any]) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"model": model_name}

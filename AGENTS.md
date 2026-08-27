@@ -53,6 +53,7 @@ Supported provider values:
 - `OpenAI`
 - `AnthropicAI`
 - `GeminiAI`
+- `BEDROCKAI`
 - `Ollama`
 
 ### LLM Initialization
@@ -270,6 +271,9 @@ The system uses environment variables to resolve runtime configuration.
 - **`GEMINIAI_API_KEY_SECRET`**
   - **Purpose**: Secret name used to resolve the Gemini API key from the configured secret manager
 
+- **`BEDROCK_AI_API_KEY_SECRET`**
+  - **Purpose**: Secret name used to resolve the AWS Bedrock API key from the configured secret manager
+
 - **`CLOUD_PROVIDER`**
   - **Purpose**: Selects the secret backend
   - **Supported Values**:
@@ -441,6 +445,10 @@ The workflow relies on a set of core libraries for model integration, API servin
 - **`langchain-openai`**
   - **Purpose**:
     - provides OpenAI model integration for LangChain
+
+- **`langchain-aws`**
+  - **Purpose**:
+    - provides AWS Bedrock model integration for LangChain
 
 - **`langchain-community`**
   - **Purpose**:
