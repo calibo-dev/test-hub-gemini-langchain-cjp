@@ -26,6 +26,8 @@ dependencies = [
   "azure-keyvault-secrets>=4.10.0",
   "langchain-anthropic>=1.4.8",
   "langchain-google-genai>=4.2.6",
+  "snowflake-connector-python>=3.10.0",
+  "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]

@@ -1,13 +1,13 @@
-name: latest_ai_development_workflow
-description: Sequential research and reporting workflow
+name: country_agent_workflow
+description: Metadata-driven query workflow for the ak_country Snowflake table
 
-stages: 
-  - research
-  - reporting
+stages:
+  - metadata_fetching_agent
+  - sql_generator_agent
+  - validator_agent
+  - query_execution_agent
+  - response_generation_agent
 
 execution:
   mode: sequential
   save_output: false
-
-output:
-  file: report.md
