@@ -18,20 +18,20 @@ metadata_fetching_agent:
   model:
     primary:
       provider: OpenAI
-      modelId: gpt-5.5-pro
+      modelId: gpt-4.1
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
         responseFormat: text
     fallback:
       provider: OpenAI
-      modelId: gpt-5.4-mini
+      modelId: gpt-4.1-mini
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
@@ -56,20 +56,20 @@ sql_generator_agent:
   model:
     primary:
       provider: OpenAI
-      modelId: gpt-5.5-pro
+      modelId: gpt-4.1
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
         responseFormat: text
     fallback:
       provider: OpenAI
-      modelId: gpt-5.4-mini
+      modelId: gpt-4.1-mini
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
@@ -94,20 +94,20 @@ validator_agent:
   model:
     primary:
       provider: OpenAI
-      modelId: gpt-5.5-pro
+      modelId: gpt-4.1
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
         responseFormat: text
     fallback:
       provider: OpenAI
-      modelId: gpt-5.4-mini
+      modelId: gpt-4.1-mini
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
@@ -132,20 +132,20 @@ query_execution_agent:
   model:
     primary:
       provider: OpenAI
-      modelId: gpt-5.5-pro
+      modelId: gpt-4.1
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
         responseFormat: text
     fallback:
       provider: OpenAI
-      modelId: gpt-5.4-mini
+      modelId: gpt-4.1-mini
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
@@ -169,20 +169,20 @@ response_generation_agent:
   model:
     primary:
       provider: OpenAI
-      modelId: gpt-5.5-pro
+      modelId: gpt-4.1
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
         responseFormat: text
     fallback:
       provider: OpenAI
-      modelId: gpt-5.4-mini
+      modelId: gpt-4.1-mini
       generationDefaults:
         temperature: 0.7
-        topP: 0.0
+        topP: 0.1
         maxOutputTokens: 11000
         presencePenalty: 0.0
         frequencyPenalty: 0.0
