@@ -215,7 +215,7 @@ tracing:
     metadata_fetching_agent:
       enabled: true
       name: Metadata Fetching Agent
-      run_type: agent
+      run_type: chain
       tags:
         - stage
         - metadata_fetching_agent
@@ -277,7 +277,7 @@ tracing:
     query_execution_agent:
       enabled: true
       name: Query Execution Agent
-      run_type: agent
+      run_type: chain
       tags:
         - stage
         - query_execution_agent
