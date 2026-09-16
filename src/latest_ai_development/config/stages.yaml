@@ -44,6 +44,7 @@ sql_generator_agent:
   instructions:
     - Parse the user's natural language intent and match requested fields with metadata.
     - Build a syntactically correct, read-only SELECT statement using only validated ak_country columns.
+    - Return the generated SQL only in the JSON key sql_query.
     - Flag the request as out of scope with out_of_scope=true when the data cannot be safely satisfied.
 
   output_sections:

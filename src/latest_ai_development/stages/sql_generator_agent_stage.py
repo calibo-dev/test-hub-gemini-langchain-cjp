@@ -44,8 +44,20 @@ class SqlGeneratorAgentStage(BaseStage):
 
         parsed = self.chain.invoke(payload)
 
-        sql_query = parsed.get("sql_query", "")
+        # Keep the workflow contract strict: the SQL generator must return
+        # "sql_query". Do not accept "sql" or other alternate key names here.
+        sql_query = _ensure_string(parsed.get("sql_query"))
         out_of_scope = bool(parsed.get("out_of_scope"))
+
+        if not sql_query and not out_of_scope:
+            logger.warning(
+                "SQL generation returned no query; marking request out of scope | "
+                "flow_run_id=%s | component=%s | parsed_keys=%s",
+                flow_run_id,
+                self.component_name,
+                sorted(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__,
+            )
+            out_of_scope = True
 
         logger.info(
             "SQL generation stage completed | flow_run_id=%s | component=%s | out_of_scope=%s | elapsed=%.2fs",
@@ -56,3 +68,10 @@ class SqlGeneratorAgentStage(BaseStage):
         )
 
         return {"sql_query": sql_query.strip(), "out_of_scope": out_of_scope}
+
+
+def _ensure_string(value: Any) -> str:
+    """Return a trimmed string for optional parsed model values."""
+    if value is None:
+        return ""
+    return str(value).strip()
