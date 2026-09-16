@@ -46,14 +46,14 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="LangChain workflow for automated research and report generation",
+    description="LangChain workflow for metadata-driven Snowflake ak_country queries",
     root_path=API_ROOT_PATH,
     lifespan=lifespan,
 )
 
 
 class AskRequest(BaseModel):
-    topic: str
+    user_query: str
 
 
 @app.get("/health")
@@ -67,18 +67,18 @@ def health() -> dict[str, str]:
 @app.post("/ask")
 def ask(request: AskRequest) -> dict[str, str]:
     """
-    Execute the research + reporting workflow.
+    Execute the ak_country metadata-driven query workflow.
     """
     flow_run_id = uuid4().hex[:12]
 
     logger.info(
-        "Request started | flow_run_id=%s | topic=%s",
+        "Request started | flow_run_id=%s | user_query=%s",
         flow_run_id,
-        request.topic,
+        request.user_query,
     )
 
     inputs = {
-        "topic": request.topic,
+        "user_query": request.user_query,
         "current_year": datetime.now().year,
         "knowledge_context": "",
     }
@@ -92,9 +92,9 @@ def ask(request: AskRequest) -> dict[str, str]:
             result = workflow.kickoff(inputs)
     except Exception as exc:
         logger.exception(
-            "Request failed | flow_run_id=%s | topic=%s",
+            "Request failed | flow_run_id=%s | user_query=%s",
             flow_run_id,
-            request.topic,
+            request.user_query,
         )
         raise HTTPException(
             status_code=500,
@@ -102,14 +102,14 @@ def ask(request: AskRequest) -> dict[str, str]:
         ) from exc
 
     logger.info(
-        "Request completed | flow_run_id=%s | topic=%s",
+        "Request completed | flow_run_id=%s | user_query=%s",
         flow_run_id,
-        request.topic,
+        request.user_query,
     )
 
     return {
-        "topic": result.get("topic"),
-        "report": result.get("report"),
+        "user_query": request.user_query,
+        "response": result.get("response"),
     }
 
 

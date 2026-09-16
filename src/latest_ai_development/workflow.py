@@ -139,25 +139,6 @@ class LatestAiDevelopmentWorkflow:
                 sorted(result.keys()),
             )
 
-        if self.workflow_config.get("execution", {}).get("save_output", False):
-            report = context.get("report")
-            if report:
-                self.settings.output_dir_path.mkdir(parents=True, exist_ok=True)
-                self.settings.report_output_path.write_text(
-                    str(report),
-                    encoding="utf-8",
-                )
-                logger.info(
-                    "Report saved | flow_run_id=%s | output_path=%s",
-                    flow_run_id,
-                    self.settings.report_output_path,
-                )
-            else:
-                logger.warning(
-                    "Report save skipped because no report was produced | flow_run_id=%s",
-                    flow_run_id,
-                )
-
         logger.info(
             "Workflow completed | flow_run_id=%s | stages=%d",
             flow_run_id,

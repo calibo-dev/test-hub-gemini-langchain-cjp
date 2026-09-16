@@ -1,145 +1,324 @@
-research:
+metadata_fetching_agent:
   system_prompt: |
-    You are a senior research analyst responsible for gathering
-    accurate and relevant information about the given topic.
+    You are MetadataFetchingAgent, responsible for obtaining the most current metadata for the ak_country table to enable valid SQL query generation. Use CountryAgenticTool exclusively to retrieve detailed column names, data types, and any relevant schema constraints of ak_country. Validate that the metadata is complete and reflects recent updates. Produce outputs that list valid columns and their data types under the key 'metadata'.
 
   instructions:
-    - Focus on factual accuracy
-    - Identify key insights
-    - Highlight risks and assumptions
-    - Provide structured research notes for downstream reporting
+    - Use CountryAgenticTool to inspect ak_country metadata including columns, types, and constraints.
+    - Confirm metadata completeness and freshness before returning values.
+    - Structure the output as a list of valid columns with their data types so downstream stages can safely reference them.
 
   output_sections:
-    - Topic Overview
-    - Key Findings
-    - Important Details
-    - Risks / Assumptions
-    - Suggested Report Outline
+    - Column Metadata
+    - Data Types
+    - Retrieval Notes
 
   use_tools: true
   use_retrieval: false
+  temperature_override: 0.7
   model:
     primary:
+      provider: OpenAI
+      modelId: gpt-4.1
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
+    fallback:
       provider: OpenAI
       modelId: gpt-4.1-mini
       generationDefaults:
         temperature: 0.7
-        topP: 0.7
-        maxOutputTokens: 4000
-    fallback:
-      provider: OpenAI
-      modelId: gpt-4.1-nano
-      generationDefaults:
-        temperature: 0.7
-        topP: 0.7
-        maxOutputTokens: 4000
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
 
-
-reporting:
+sql_generator_agent:
   system_prompt: |
-    You are a professional reporting analyst responsible for converting
-    research notes into a structured markdown report.
+    You are SQLGeneratorAgent, responsible for converting user natural language queries about country and geographic data into valid, read-only SQL SELECT statements against the ak_country table. Use inputs: 'user_query' and the latest 'metadata'. Identify requested fields such as country names, Alpha-2/Alpha-3 codes, numeric codes, ISO 3166-2 identifiers, regions, sub-regions, and intermediate regions. Generate SQL queries that only reference columns confirmed in the metadata, strictly avoid joins, data modifications, or schema changes, and ensure the statements remain read-only. Set 'out_of_scope' to true when the query requests data outside ak_country scope.
 
   instructions:
-    - Produce a structured markdown report
-    - Avoid unsupported claims
-    - Keep the report easy to scan
-    - Use clear headings and sections
+    - Parse the user's natural language intent and match requested fields with metadata.
+    - Build a syntactically correct, read-only SELECT statement using only validated ak_country columns.
+    - Return the generated SQL only in the JSON key sql_query.
+    - Flag the request as out of scope with out_of_scope=true when the data cannot be safely satisfied.
+
+  output_sections:
+    - SQL Candidate
+    - Out of Scope Indicator
+
+  use_tools: false
+  use_retrieval: false
+  temperature_override: 0.7
   model:
     primary:
       provider: OpenAI
-      modelId: gpt-4.1-mini
+      modelId: gpt-4.1
       generationDefaults:
-        temperature: 0.3
-        topP: 0.7
-        maxOutputTokens: 4000
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
     fallback:
       provider: OpenAI
-      modelId: gpt-4.1-nano
+      modelId: gpt-4.1-mini
       generationDefaults:
-        temperature: 0.3
-        topP: 0.7
-        maxOutputTokens: 4000
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
+
+validator_agent:
+  system_prompt: |
+    You are ValidatorAgent, responsible for assessing the safety and accuracy of SQL queries generated for ak_country. Validate that the query references only metadata-confirmed columns, contains no joins, and remains a read-only SELECT. If out_of_scope is true, skip validation, clear the SQL, and propagate the out_of_scope flag.
+
+  instructions:
+    - Check syntax and column usage against the metadata catalog.
+    - Enforce read-only behavior and absence of joins or schema alterations.
+    - Set out_of_scope=true and clear validated_query when the SQL cannot be safely executed.
+
+  output_sections:
+    - Validated Query
+    - Validation Outcome
+
+  use_tools: false
+  use_retrieval: false
+  temperature_override: 0.7
+  model:
+    primary:
+      provider: OpenAI
+      modelId: gpt-4.1
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
+    fallback:
+      provider: OpenAI
+      modelId: gpt-4.1-mini
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
+
+query_execution_agent:
+  system_prompt: |
+    You are QueryExecutionAgent, responsible for executing validated read-only SQL queries against the ak_country table. Use CountryAgenticTool, ensure only ak_country columns are referenced, and handle any execution errors gracefully. If out_of_scope is true, skip execution and return an indication that the requested data cannot be retrieved.
+
+  instructions:
+    - Use CountryAgenticTool to execute the provided validated_query when in scope.
+    - Capture raw rows, column headers, and any execution notes or error details.
+    - When out_of_scope=true, return empty results and propagate the flag without running SQL.
+
+  output_sections:
+    - Execution Results
+    - Execution Notes
+
+  use_tools: true
+  use_retrieval: false
+  temperature_override: 0.7
+  model:
+    primary:
+      provider: OpenAI
+      modelId: gpt-4.1
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
+    fallback:
+      provider: OpenAI
+      modelId: gpt-4.1-mini
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
+
+response_generation_agent:
+  system_prompt: |
+    You are ResponseGenerationAgent, tasked with transforming raw query results or out_of_scope indicators into clear, concise user-facing answers. Use the ak_country query results, indicate when data is unavailable, and avoid fabricating or inferring beyond what the results provide.
+
+  instructions:
+    - Summarize the raw query results with emphasis on country names, ISO codes, numeric codes, regions, sub-regions, and intermediate regions as applicable.
+    - When out_of_scope is true, clearly explain the limitation and lack of available data.
+    - Keep the response concise, factual, and safe for users.
+
+  output_sections:
+    - Response Summary
+
+  use_tools: false
+  use_retrieval: false
+  temperature_override: 0.7
+  model:
+    primary:
+      provider: OpenAI
+      modelId: gpt-4.1
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
+    fallback:
+      provider: OpenAI
+      modelId: gpt-4.1-mini
+      generationDefaults:
+        temperature: 0.7
+        topP: 0.1
+        maxOutputTokens: 11000
+        presencePenalty: 0.0
+        frequencyPenalty: 0.0
+        responseFormat: text
 
 tracing:
   workflow:
     enabled: true
-    name: Research Reporting Workflow
+    name: Country Agentic Workflow
     run_type: chain
     tags:
       - workflow
-      - multi-agent
+      - langchain
     metadata:
-      workflow_name: research_reporting
+      workflow_name: country_agent_workflow
       workflow_version: "1.0"
     input_fields:
-      flow_run_id: flow_run_id
-      topic: inputs.topic
+      flow_run_id: inputs.flow_run_id
+      user_query: inputs.user_query
       current_year: inputs.current_year
       knowledge_context_present:
         path: inputs.knowledge_context
         transform: bool
     output_fields:
-      flow_run_id: flow_run_id
-      topic: topic
-      keys:
+      response: response
+      output_keys:
         path: .
         transform: keys
-      has_report:
-        path: report
-        transform: bool
-      report_chars:
-        path: report
-        transform: len
-      research_notes_chars:
-        path: research_notes
-        transform: len
   stages:
-    research:
+    metadata_fetching_agent:
       enabled: true
-      name: Research Agent Stage
+      name: Metadata Fetching Agent
       run_type: chain
       tags:
         - stage
-        - research
+        - metadata_fetching_agent
       metadata:
         component_type: agent
-        agent_name: research_agent
-        stage: research
+        stage: metadata_fetching_agent
       input_fields:
         flow_run_id: inputs.flow_run_id
-        topic: inputs.topic
         current_year: inputs.current_year
         knowledge_context_present:
           path: inputs.knowledge_context
           transform: bool
       output_fields:
-        topic: topic
-        research_notes_chars:
-          path: research_notes
-          transform: len
-    reporting:
+        metadata: metadata
+    sql_generator_agent:
       enabled: true
-      name: Reporting Stage
+      name: SQL Generator Agent
       run_type: chain
       tags:
         - stage
-        - reporting
+        - sql_generator_agent
       metadata:
         component_type: chain
-        stage: reporting
+        stage: sql_generator_agent
       input_fields:
         flow_run_id: inputs.flow_run_id
-        topic: inputs.topic
+        user_query: inputs.user_query
+        metadata: inputs.metadata
         current_year: inputs.current_year
-        research_notes_present:
-          path: inputs.research_notes
+        knowledge_context_present:
+          path: inputs.knowledge_context
           transform: bool
-        research_notes_chars:
-          path: inputs.research_notes
-          transform: len
       output_fields:
-        topic: topic
-        report_chars:
-          path: report
-          transform: len
+        sql_query: sql_query
+        out_of_scope:
+          path: out_of_scope
+          transform: bool
+    validator_agent:
+      enabled: true
+      name: Validator Agent
+      run_type: chain
+      tags:
+        - stage
+        - validator_agent
+      metadata:
+        component_type: chain
+        stage: validator_agent
+      input_fields:
+        flow_run_id: inputs.flow_run_id
+        sql_query: inputs.sql_query
+        out_of_scope:
+          path: inputs.out_of_scope
+          transform: bool
+      output_fields:
+        validated_query: validated_query
+        out_of_scope:
+          path: out_of_scope
+          transform: bool
+    query_execution_agent:
+      enabled: true
+      name: Query Execution Agent
+      run_type: chain
+      tags:
+        - stage
+        - query_execution_agent
+      metadata:
+        component_type: agent
+        stage: query_execution_agent
+      input_fields:
+        flow_run_id: inputs.flow_run_id
+        validated_query: inputs.validated_query
+        out_of_scope:
+          path: inputs.out_of_scope
+          transform: bool
+        knowledge_context_present:
+          path: inputs.knowledge_context
+          transform: bool
+      output_fields:
+        results: results
+        out_of_scope:
+          path: out_of_scope
+          transform: bool
+    response_generation_agent:
+      enabled: true
+      name: Response Generation Agent
+      run_type: chain
+      tags:
+        - stage
+        - response_generation_agent
+      metadata:
+        component_type: chain
+        stage: response_generation_agent
+      input_fields:
+        flow_run_id: inputs.flow_run_id
+        results: inputs.results
+        out_of_scope:
+          path: inputs.out_of_scope
+          transform: bool
+        user_query: inputs.user_query
+        current_year: inputs.current_year
+        knowledge_context_present:
+          path: inputs.knowledge_context
+          transform: bool
+      output_fields:
+        response: response
