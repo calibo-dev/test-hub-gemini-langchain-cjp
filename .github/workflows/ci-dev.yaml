@@ -1,0 +1,189 @@
+name: CI-Dev
+on:
+  workflow_dispatch: {}
+jobs:
+  continuous-integration:
+    runs-on: ${{ fromJson(vars.RUNNER_NAME_Dev) }}
+    environment:
+      name: Dev
+    env:
+      CI_IMAGE: python:3.14
+      KUBECTL_IMAGE_VERSION: public.ecr.aws/lazsa/kubectl:latest
+      HELM_IMAGE_VERSION: alpine/helm:3.8.1
+      OC_IMAGE_VERSION: quay.io/openshift/origin-cli:4.9.0
+      SONAR_IMAGE_VERSION: sonarsource/sonar-scanner-cli:11.0
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Initialization
+        run: |
+          # Parse CI metadata JSON from GitHub variables
+          JSON_STRING='${{ vars.CI_METADATA }}'
+          temp_string=$(echo "$JSON_STRING" | jq -r '.general.stageFlag')
+
+          # Extract and set collector/telemetry variables
+          # push to collector
+          echo "TENANT_ID=$(echo "$JSON_STRING" | jq -r '.general.tenant')" >> "$GITHUB_ENV"
+          echo "TARGET_URI=$(echo "$JSON_STRING" | jq -r '.general.lazsaDomainUri')" >> "$GITHUB_ENV"
+          echo "AGENT_ID=$(echo "$JSON_STRING" | jq -r '.general.agentId')" >> "$GITHUB_ENV"
+          echo "AGENT_API_KEY_SECRET=$(echo "$JSON_STRING" | jq -r '.general.agentApiKeySecret')" >> "$GITHUB_ENV"
+          echo "PIPELINE_ID=$(echo "$JSON_STRING" | jq -r '.general.pipelineId')" >> "$GITHUB_ENV"
+          echo "DEVOPS_SETTING_ID=$(echo "$JSON_STRING" | jq -r '.general.devopsSettingId')" >> "$GITHUB_ENV"
+
+          # Extract container registry and build configuration
+          echo "REGISTRY_URL=$(echo "$JSON_STRING" | jq -r '.general.containerImagePath')" >> "$GITHUB_ENV"
+          echo "BUILD_TAG=${{ github.run_number }}"  >> "$GITHUB_ENV"
+          echo "ARTIFACTORY_CREDENTIALS=$(echo "$JSON_STRING" | jq -r '.general.artifactorySecret')"  >> "$GITHUB_ENV"
+          echo "SONAR_CREDENTIAL_ID=$(echo "$JSON_STRING" | jq -r '.general.sonarSecret')"  >> "$GITHUB_ENV"
+          echo "ARTIFACTORY=$(echo "$JSON_STRING" | jq -r '.general.artifactory')"  >> "$GITHUB_ENV"
+          echo "STAGE_FLAG=$(echo "$JSON_STRING" | jq -r '.general.stageFlag')"  >> "$GITHUB_ENV"
+          echo "CONTAINER_SCAN_TYPE=$(echo "$JSON_STRING" | jq -r '.general.containerScanType')"  >> "$GITHUB_ENV"
+          echo "DOCKERHOST=$(echo "$JSON_STRING" | jq -r '.general.dockerHostIP')"  >> "$GITHUB_ENV"
+          echo "REPO_NAME=$(echo "$JSON_STRING" | jq -r '.general.repoName')"  >> "$GITHUB_ENV"
+          echo "CONTEXT=$(echo "$JSON_STRING" | jq -r '.general.contextPath')" >> "$GITHUB_ENV"
+
+          # Extract SonarQube configuration
+          echo "SONAR_SCAN_FLAG=$(echo "$temp_string" | jq -r '.sonarScan')" >> "$GITHUB_ENV"
+          echo "SONAR_ORG=$(echo "$JSON_STRING" | jq -r '.general.sonarOrg')" >> "$GITHUB_ENV"
+          echo "SONAR_HOST=$(echo "$JSON_STRING" | jq -r '.general.sonarHost')" >> "$GITHUB_ENV"
+          echo "SONAR_PROJECT_KEY=$(echo "$JSON_STRING" | jq -r '.general.sonarProjectKey')" >> "$GITHUB_ENV"
+
+          # Extract for snyk configuration
+          echo "SNYK_PROJECTNAME=$(echo "$JSON_STRING" | jq -r '.general.containerScanMetadata.projectName')" >> "$GITHUB_ENV"
+          echo "SNYK_SEVERITY=$(echo "$JSON_STRING" | jq -r '.general.containerScanMetadata.severity')" >> "$GITHUB_ENV"
+          echo "SNYK_ORGANIZATION=$(echo "$JSON_STRING" | jq -r '.general.containerScanMetadata.snykOrg')" >> "$GITHUB_ENV"
+          echo "SNYK_SECRET=$(echo "$JSON_STRING" | jq -r '.general.containerScanMetadata.snykSecret')" >> "$GITHUB_ENV"
+          export SNYK_SEVERITY="$(echo "$JSON_STRING" | jq -r '.general.containerScanMetadata.severity')"
+
+          if [[ $SNYK_SEVERITY == "" ]]
+          then
+
+            echo "SNYK_CONTINUE_ON_ERROR=true" >> "$GITHUB_ENV"
+          else
+
+            echo "SNYK_CONTINUE_ON_ERROR=false" >> "$GITHUB_ENV"
+          fi
+
+
+          # Extract Artifactory credentials
+          echo "ARTIFACTORY_USER_SECRET=$(echo "$JSON_STRING" | jq -r '.general.artifactoryUserSecret')" >> "$GITHUB_ENV"
+          echo "ARTIFACTORY_PASSWORD_SECRET=$(echo "$JSON_STRING" | jq -r '.general.artifactoryPasswordSecret')" >> "$GITHUB_ENV"
+          export REGISTRY_URL="$(echo "$JSON_STRING" | jq -r '.general.containerImagePath')"
+          echo "DOCKER_LOGIN_URL=$(echo "$REGISTRY_URL" | cut -d'/' -f1)" >> "$GITHUB_ENV"
+
+          # Extract artifact publishing configuration
+          echo "PUBLISH_ARTIFACT=$(echo "$JSON_STRING" | jq -r '.general.artifactPublish')" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          echo "no build"
+      - name: Unit Test
+        run: |
+          # Execute unit tests using custom test script in Docker container
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PATH=/tmp/.local/bin:$PATH -v "$GITHUB_WORKSPACE":/app -w /app $CI_IMAGE /bin/sh -c "pip install uv && uv sync --extra dev && uv run pytest"
+      - name: SonarQube Scan
+        if: env.SONAR_SCAN_FLAG == 'true'
+        run: |
+          # Run SonarQube scan with Python-specific configuration
+          # Includes coverage and test report paths for Python projects
+          docker run \
+            -e SONAR_TOKEN="${{ secrets[env.SONAR_CREDENTIAL_ID] }}" \
+            -v "$GITHUB_WORKSPACE":/app \
+            -w /app \
+            $SONAR_IMAGE_VERSION \
+            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.projectName="$SONAR_PROJECT_KEY" \
+            -Dsonar.host.url="$SONAR_HOST" \
+            -Dsonar.organization="$SONAR_ORG" \
+            -Dsonar.sources=src \
+            -Dsonar.tests=tests \
+            -Dsonar.exclusions=helm_chart/** \
+            -Dsonar.python.version=3.12 \
+            -Dsonar.python.coverage.reportPaths=coverage.xml \
+            -Dsonar.python.xunit.reportPath=testreport.xml \
+            -Dsonar.coverage.jacoco.xmlReportPaths= \
+                              
+      - name: Build Container Image
+        run: |
+          # Build Docker image with build number and latest tags
+          docker build -t "$REGISTRY_URL:$BUILD_TAG" -t "$REGISTRY_URL:latest" .
+      - name: Setup JFrog CLI
+        if: env.CONTAINER_SCAN_TYPE == 'XRAY' && env.PUBLISH_ARTIFACT == 'false'
+        uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: https://${{ env.DOCKER_LOGIN_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }}
+      - name: Container Image Scan - xray
+        if: env.CONTAINER_SCAN_TYPE == 'XRAY' && env.PUBLISH_ARTIFACT == 'false'
+        run: jf docker scan $REGISTRY_URL:$BUILD_TAG
+      - name: Snyk Installation
+        if: env.CONTAINER_SCAN_TYPE == 'SNYK' && env.PUBLISH_ARTIFACT == 'false'
+        uses: snyk/actions/setup@v1.0.0
+      - name: Snyk Monitor
+        if: env.CONTAINER_SCAN_TYPE == 'SNYK' && env.PUBLISH_ARTIFACT == 'false'
+        run: snyk container monitor "$REGISTRY_URL:$BUILD_TAG" --project-name="$SNYK_PROJECTNAME" --org="$SNYK_ORGANIZATION"
+        env:
+          SNYK_TOKEN: ${{ secrets[env.SNYK_SECRET] }}
+      - name: Container Image Scan - Snyk
+        if: env.CONTAINER_SCAN_TYPE == 'SNYK' && env.PUBLISH_ARTIFACT == 'false'
+        continue-on-error: ${{ env.SNYK_CONTINUE_ON_ERROR == 'true' }}
+        run: |
+          # SNYK_SEVERITY is empty when SNYK_CONTINUE_ON_ERROR is true.
+          snyk container test "$REGISTRY_URL:$BUILD_TAG" \
+            $SNYK_SEVERITY \
+            --exclude-app-vulns \
+            --project-name="$SNYK_PROJECTNAME" \
+            --org="$SNYK_ORGANIZATION"
+        env:
+          SNYK_TOKEN: ${{ secrets[env.SNYK_SECRET] }}
+      - name: Publish Container Image
+        run: |
+          # Handle different registry types (ECR vs others)
+          if [[ $ARTIFACTORY == "ECR" ]]
+          then
+            # Extract region from ECR URL and authenticate with AWS
+            ECR_REGION=$(echo "$REGISTRY_URL" | cut -d'.' -f4)
+            set +x
+            export AWS_ACCESS_KEY_ID=${{ secrets[env.ARTIFACTORY_USER_SECRET] }}
+            export AWS_SECRET_ACCESS_KEY=${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }}
+            aws ecr get-login-password --region "$ECR_REGION" | docker login --username AWS --password-stdin $DOCKER_LOGIN_URL
+            set -x
+          else
+            # Standard Docker registry authentication
+            echo "${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }}" | docker login "$DOCKER_LOGIN_URL" \
+              -u "${{ secrets[env.ARTIFACTORY_USER_SECRET] }}" --password-stdin
+          fi
+
+          # Push Docker images to registry
+          docker push "$REGISTRY_URL:$BUILD_TAG"
+          docker push "$REGISTRY_URL:latest"
+
+          # Clean up local images to save space
+          docker rmi "$REGISTRY_URL:$BUILD_TAG" "$REGISTRY_URL:latest" || true
+      - name: Push to collector
+        continue-on-error: true
+        if: always()
+        run: |
+          # Fix workspace permissions
+          chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
+
+          # Log workflow execution details
+          echo "Workflow Run ID:${GITHUB_RUN_ID}, Workflow Run Number: ${GITHUB_RUN_NUMBER}, Workflow Name: ${GITHUB_WORKFLOW}, Github Repository: ${GITHUB_REPOSITORY}, Job Name: ${GITHUB_JOB}, Tenant ID: $TENANT_ID, Target URI: $TARGET_URI"
+
+          # Send workflow execution data to collector if tenant info is available
+          if [[ $TENANT_ID != "" && $TARGET_URI != "" ]];then
+                curl --show-error --silent -i --request POST "$TARGET_URI/collector/orchestrator/devops/details" \
+                  -H "X-TenantID: ${TENANT_ID}" \
+                  -H 'Content-Type: application/json'\
+                  -d '{
+                        "workflowName": "'"${GITHUB_WORKFLOW}"'",
+                        "workflowId": "'"${GITHUB_RUN_ID}"'",
+                        "workflowRunNumber": "'"${GITHUB_RUN_NUMBER}"'",
+                        "repoName": "'"${GITHUB_REPOSITORY}"'",
+                        "agentId": "'"${AGENT_ID}"'",
+                        "devopsConfigId": "'"${DEVOPS_SETTING_ID}"'",
+                        "pipelineId": "'"${PIPELINE_ID}"'",
+                        "agentApiKey": "'"${{ secrets[env.AGENT_API_KEY_SECRET] }}"'",
+                        "buildNumber": "'"${GITHUB_RUN_ID}"'"
+                      }'
+                echo "push to collector stage Completed"
+          fi

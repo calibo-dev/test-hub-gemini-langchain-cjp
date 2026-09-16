@@ -1,0 +1,399 @@
+name: Deploy-to-k8s-Dev
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Action to perform
+        required: true
+        default: DEPLOY
+        type: string
+jobs:
+  continuous-deployment:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ${{ fromJson(vars.RUNNER_NAME_Dev) }}
+    environment:
+      name: Dev
+    env:
+      KUBECTL_IMAGE_VERSION: public.ecr.aws/lazsa/kubectl:latest
+      HELM_IMAGE_VERSION: alpine/helm:4
+      OC_IMAGE_VERSION: quay.io/openshift/origin-cli:4.9.0
+      JAVA_IMAGE_FOR_FUNC_TESTING: maven:3.8.3-amazoncorretto-17
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Initialization
+        env:
+          INPUT_ACTION: ${{ inputs.action }}
+        run: |
+          # Install yq for YAML processing
+          sudo apt install yq -y || true
+
+          # Set action from input or default to DEPLOY
+          export ACTION="${INPUT_ACTION:-DEPLOY}"
+          echo "ACTION=$(echo "$ACTION")" >> "$GITHUB_ENV"
+
+          # Choose metadata source based on action type
+          if [[ "${ACTION}" == "PROMOTE" || "${ACTION}" == "ROLLBACK" ]]
+          then
+            JSON_STRING='${{ vars.PROMOTE_METADATA}}'
+            temp_string=$(echo "$JSON_STRING" | jq -r '.general.stageFlag')
+          else
+            JSON_STRING='${{ vars.CD_METADATA }}'
+            temp_string=$(echo "$JSON_STRING" | jq -r '.general.stageFlag')
+          fi
+
+          # Extract and set collector/telemetry variables
+          # push to collector
+          echo "TENANT_ID=$(echo "$JSON_STRING" | jq -r '.general.tenant')" >> "$GITHUB_ENV"
+          echo "TARGET_URI=$(echo "$JSON_STRING" | jq -r '.general.lazsaDomainUri')" >> "$GITHUB_ENV"
+          echo "AGENT_ID=$(echo "$JSON_STRING" | jq -r '.general.agentId')" >> "$GITHUB_ENV"
+          echo "AGENT_API_KEY_SECRET=$(echo "$JSON_STRING" | jq -r '.general.agentApiKeySecret')" >> "$GITHUB_ENV"
+          echo "PIPELINE_ID=$(echo "$JSON_STRING" | jq -r '.general.pipelineId')" >> "$GITHUB_ENV"
+          echo "DEVOPS_SETTING_ID=$(echo "$JSON_STRING" | jq -r '.general.devopsSettingId')" >> "$GITHUB_ENV"
+
+          # Extract container registry and deployment configuration
+          echo "REGISTRY_URL=$(echo "$JSON_STRING" | jq -r '.general.containerImagePath')" >> "$GITHUB_ENV"
+          echo "BUILD_TAG=$(echo "$JSON_STRING" | jq -r '.general.containerImageTag')"  >> "$GITHUB_ENV"
+          echo "ARTIFACTORY=$(echo "$JSON_STRING" | jq -r '.general.artifactory')"  >> "$GITHUB_ENV"
+          echo "REPO_NAME=$(echo "$JSON_STRING" | jq -r '.general.repoName')"  >> "$GITHUB_ENV"
+          echo "GIT_REPO_CRED_ID=$(echo "$JSON_STRING" | jq -r '.general.sourceCodeCredentialId')"  >> "$GITHUB_ENV"
+          echo "CONTEXT=$(echo "$JSON_STRING" | jq -r '.general.contextPath')" >> "$GITHUB_ENV"
+          echo "APP_PORT=$(echo "$JSON_STRING" | jq -r '.docker.appPort')" >> "$GITHUB_ENV"
+          echo "DOCKERHOST=$(echo "$JSON_STRING" | jq -r '.general.dockerHostIP')"  >> "$GITHUB_ENV"
+
+          # Extract Kubernetes and Helm configuration
+          echo "HELM_RELEASE_NAME=$(echo "$JSON_STRING" | jq -r '.general.helmReleaseName')" >> "$GITHUB_ENV"
+          echo "KUBE_NAMESPACE=$(echo "$JSON_STRING" | jq -r '.kubernetes.namespace')" >> "$GITHUB_ENV"
+          echo "ARTIFACTORY_USER_SECRET=$(echo "$JSON_STRING" | jq -r '.general.artifactoryUserSecret')" >> "$GITHUB_ENV"
+          echo "ARTIFACTORY_PASSWORD_SECRET=$(echo "$JSON_STRING" | jq -r '.general.artifactoryPasswordSecret')" >> "$GITHUB_ENV"
+          export REGISTRY_URL="$(echo "$JSON_STRING" | jq -r '.general.containerImagePath')"
+          echo "DOCKER_LOGIN_URL=$(echo "$REGISTRY_URL" | cut -d'/' -f1)" >> "$GITHUB_ENV"
+
+          echo "KUBE_CONFIG_SECRET_ID=$(echo "$JSON_STRING" | jq -r '.general.kubernetesSecret')" >> "$GITHUB_ENV"
+          echo "K8S_SECRET_NAME=$(echo "$JSON_STRING" | jq -r '.general.artifactoryPasswordSecret' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-253)" >> "$GITHUB_ENV"
+
+          # Extract promotion workflow configuration variables
+          #promotion workflow
+          echo "PROMOTE_SOURCE=$(echo "$JSON_STRING" | jq -r '.general.promoteSource')" >> "$GITHUB_ENV"
+          echo "PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET=$(echo "$JSON_STRING" | jq -r '.general.promoteSourceArtifactoryUserSecret')" >> "$GITHUB_ENV"
+          echo "PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET=$(echo "$JSON_STRING" | jq -r '.general.promoteSourceArtifactoryPasswordSecret')" >> "$GITHUB_ENV"
+          echo "PROMOTE_SOURCE_ARTIFACTORY_TYPE=$(echo "$JSON_STRING" | jq -r '.general.promoteSourceArtifactoryType')" >> "$GITHUB_ENV"
+          echo "PROMOTE_TAG=$(echo "$JSON_STRING" | jq -r '.general.promoteTag')" >> "$GITHUB_ENV"
+          echo "ROLLBACK_TAG=$(echo "$JSON_STRING" | jq -r '.general.rollbackTag')" >> "$GITHUB_ENV"
+
+          # Handle build tag for workflow run events
+          if [[ ${{ github.event_name }} == "workflow_run" ]]
+          then
+                 echo "Running for workflow run - build tag"
+                 export BUILD_TAG="${{ github.event.workflow_run.run_number }}"
+                 echo "BUILD_TAG=${{ github.event.workflow_run.run_number }}" >> "$GITHUB_ENV"
+                 echo "Build Tag: $BUILD_TAG"
+          fi
+
+          # Convert Kubernetes configuration JSON to YAML
+          echo "$JSON_STRING" | jq -r '.kubernetes' | yq --yaml-output > Helm.yaml
+          #echo "$JSON_STRING" | jq -r '.kubernetes.vault' | yq  > Vault.yaml
+
+          # Extract functional testing configuration
+          #fuctional test
+          echo "FUNCTIONAL_TESTING_FLAG=$(echo "$temp_string" | jq -r '.FunctionalTesting')" >> "$GITHUB_ENV"
+          echo "TESTCASEREPOSITORYURL=$(echo "$JSON_STRING" | jq -r '.general.testcaseRepositoryUrl')" >> "$GITHUB_ENV"
+          echo "TESTCASEREPOSITORYBRANCH=$(echo "$JSON_STRING" | jq -r '.general.testcaseRepositoryBranch')" >> "$GITHUB_ENV"
+          #echo "SOURCECODECREDENTIALID=$(echo "$JSON_STRING" | jq -r '.general.sourceCodeCredentialId')" >> "$GITHUB_ENV"
+          echo "TESTCASECOMMAND=$(echo "$JSON_STRING" | jq -r '.general.testcaseCommand')" >> "$GITHUB_ENV"
+          echo "TESTINGTOOLTYPE=$(echo "$JSON_STRING" | jq -r '.general.testingToolType')" >> "$GITHUB_ENV"
+          echo "BROWSERTYPE=$(echo "$JSON_STRING" | jq -r '.general.browserType')" >> "$GITHUB_ENV"
+          echo "INGRESS_HOST=$(echo "$JSON_STRING" | jq -r '.kubernetes.ingress.hosts[0]')" >> "$GITHUB_ENV"
+          echo "INGRESS_ADDRESS=$(echo "$JSON_STRING" | jq -r '.general.ingressAddress')" >> "$GITHUB_ENV"
+          export TESTCASEREPOSITORYURL=$(echo "$JSON_STRING" | jq -r '.general.testcaseRepositoryUrl')
+          echo "TESTCASE_REPO_PATH=$(echo "$TESTCASEREPOSITORYURL" | cut -d'/' -f4-5 | sed 's/.git$//')" >> "$GITHUB_ENV"
+
+          # Extract external Helm chart configuration
+          #external helm chart
+          echo "HELM_REPO_URL=$(echo "$JSON_STRING" | jq -r '.helm.helmRepoUrl')" >> "$GITHUB_ENV"
+          echo "HELM_CHART_LOCATION=$(echo "$JSON_STRING" | jq -r '.helm.workingDirectory')" >> "$GITHUB_ENV"
+          echo "CHART_VALUES_PATH=$(echo "$JSON_STRING" | jq -r '.helm.values')" >> "$GITHUB_ENV"
+          echo "HELM_REPO_BRANCH=$(echo "$JSON_STRING" | jq -r '.helm.helmRepoBranch')" >> "$GITHUB_ENV"
+          export HELM_REPO_URL=$(echo "$JSON_STRING" | jq -r '.helm.helmRepoUrl')
+          echo "HELM_REPO_PATH=$(echo "$HELM_REPO_URL" | cut -d'/' -f4-5 | sed 's/.git$//')" >> "$GITHUB_ENV"
+      - name: Configure Kubeconfig File
+        env:
+          KUBE_CONFIG: ${{ secrets[env.KUBE_CONFIG_SECRET_ID] }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          # Fail early if secret didn't resolve
+          if [[ -z "${KUBE_CONFIG:-}" ]]; then
+            echo "ERROR: KUBE_CONFIG is empty. Check KUBE_CONFIG_SECRET_ID and that the secret exists." >&2
+            exit 1
+          fi
+
+          KCFG="$(mktemp -p "${RUNNER_TEMP:-/tmp}" kubeconfig.XXXXXX)"
+
+          # Decode into temp kubeconfig file
+          printf '%s' "$KUBE_CONFIG" | base64 --decode > "$KCFG"
+          chmod 644 "$KCFG"
+
+          # Export path for later steps
+          echo "KUBECONFIG=$KCFG" >> "$GITHUB_ENV"
+      - name: Artifact Promotion
+        if: env.ACTION == 'PROMOTE'
+        env:
+          ARTIFACTORY_PASSWORD_SECRET: ${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }}
+          ARTIFACTORY_USER_SECRET: ${{ secrets[env.ARTIFACTORY_USER_SECRET] }}
+          PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET: ${{ secrets[env.PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET] }}
+          PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET: ${{ secrets[env.PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET] }}
+        run: |
+          # Authenticate with target registry (ECR or standard)
+          if [[ $ARTIFACTORY == "ECR" ]]
+          then
+            ECR_REGION=$(echo "$REGISTRY_URL" | cut -d'.' -f4)
+            set +x
+            AWS_ACCESS_KEY_ID=$ARTIFACTORY_USER_SECRET AWS_SECRET_ACCESS_KEY=$ARTIFACTORY_PASSWORD_SECRET aws ecr get-login-password --region "$ECR_REGION" | docker login --username AWS --password-stdin $DOCKER_LOGIN_URL
+            set -x
+          else
+            echo "$ARTIFACTORY_PASSWORD_SECRET" | docker login "$DOCKER_LOGIN_URL" \
+              -u "$ARTIFACTORY_USER_SECRET" --password-stdin
+          fi
+
+          # Authenticate with source registry for promotion
+          PROMOTE_SOURCE_LOGIN_URL=$(echo "$PROMOTE_SOURCE" | cut -d'/' -f1)
+          if [[ $PROMOTE_SOURCE_ARTIFACTORY_TYPE == "ECR" ]]
+          then
+            REGION=$(echo "$PROMOTE_SOURCE" | cut -d'.' -f4)
+            PROMOTE_SOURCE_ECR_REGION=$(echo "$PROMOTE_SOURCE" | cut -d'.' -f4)
+            set +x
+            export AWS_ACCESS_KEY_ID=$PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET
+            export AWS_SECRET_ACCESS_KEY=$PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET
+            aws ecr get-login-password --region "$PROMOTE_SOURCE_ECR_REGION" | docker login --username AWS --password-stdin $PROMOTE_SOURCE_LOGIN_URL
+            set -x
+          else
+            echo "$PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET" | docker login "$PROMOTE_SOURCE_LOGIN_URL" \
+              -u "$PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET" --password-stdin
+          fi
+
+          # Pull source image, tag with promote tag, and push to target registry
+          docker pull $PROMOTE_SOURCE
+          docker image tag $PROMOTE_SOURCE $REGISTRY_URL:$PROMOTE_TAG
+          docker push $REGISTRY_URL:$PROMOTE_TAG
+          echo "BUILD_TAG=$PROMOTE_TAG"  >> "$GITHUB_ENV"
+      - name: Checkout External Helm Chart Repo
+        if: env.HELM_REPO_URL != 'null'
+        env:
+          GIT_REPO_CRED_ID: ${{ secrets[env.GIT_REPO_CRED_ID] }}
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.HELM_REPO_PATH }}
+          ref: ${{ env.HELM_REPO_BRANCH }}
+          path: ./external_helm
+          token: ${{ env.GIT_REPO_CRED_ID }}
+      - name: Deploy to Kubernetes
+        if: env.ACTION == 'DEPLOY' || env.ACTION == 'PROMOTE' || env.ACTION == 'ROLLBACK'
+        env:
+          ARTIFACTORY_PASSWORD_SECRET: ${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }}
+          ARTIFACTORY_USER_SECRET: ${{ secrets[env.ARTIFACTORY_USER_SECRET] }}
+        run: |
+          # Handle rollback by setting build tag to rollback tag
+          if [[ $ACTION == "ROLLBACK" ]]
+          then
+                 echo "Running Rollback"
+                 export BUILD_TAG=$ROLLBACK_TAG
+                 echo "Build Tag: $BUILD_TAG"
+          fi
+
+          # Create Kubernetes namespace if it doesn't exist
+          docker run --rm -v "$KUBECONFIG":"/.kube/config:ro" -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION create ns "$KUBE_NAMESPACE" || true
+
+          # Handle OpenShift-specific configuration
+          if [[ $DEPLOYMENT_TYPE == 'OPENSHIFT' ]]
+          then
+             # Find service account from Helm values
+             COUNT=$(grep 'serviceAccount' Helm.yaml | wc -l)
+             if [[ $COUNT -gt 0 ]]
+             then
+                 ACCOUNT=$(grep 'serviceAccount:' Helm.yaml | tail -n1 | awk '{ print $2}')
+                 echo $ACCOUNT
+             else
+                 ACCOUNT='default'
+             fi
+             # Add anyuid security context constraint for OpenShift
+             docker run --rm -v "$KUBECONFIG":"/.kube/config:ro":"/.kube/config" -e KUBECONFIG="/.kube/config" -v "$GITHUB_WORKSPACE":/apps -w /apps $OC_IMAGE_VERSION oc adm policy add-scc-to-user anyuid -z $ACCOUNT -n "$KUBE_NAMESPACE"
+          fi
+
+          # Create Docker registry secret for non-ECR registries
+          if [[ $ARTIFACTORY != "ECR" ]]
+          then
+            ## hardcoded name regcred need to be change
+            docker run --rm -v "$KUBECONFIG":"/.kube/config:ro"  -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION -n "$KUBE_NAMESPACE" delete secret "$K8S_SECRET_NAME" --ignore-not-found || true
+            docker run --rm -v "$KUBECONFIG":"/.kube/config:ro" -e KUBECONFIG="/.kube/config" $KUBECTL_IMAGE_VERSION -n "$KUBE_NAMESPACE" create secret docker-registry "$K8S_SECRET_NAME" --docker-server="$DOCKER_LOGIN_URL" --docker-username=${{ env.ARTIFACTORY_USER_SECRET }} --docker-password=${{ env.ARTIFACTORY_PASSWORD_SECRET }} || true
+          fi
+
+          # Deploy using external Helm chart or built-in chart
+          if [[ "$HELM_REPO_URL" != 'null' ]]
+          then
+             # Deploy using external Helm chart from separate repository
+             ### Command for running External Helm Chart
+               cd external_helm
+               docker run --rm -v "$KUBECONFIG":"/.kube/config:ro" -e KUBECONFIG="/.kube/config" -v "$GITHUB_WORKSPACE":/apps -w /apps/external_helm $HELM_IMAGE_VERSION upgrade --install "$HELM_RELEASE_NAME" -n "$KUBE_NAMESPACE" "$HELM_CHART_LOCATION" --rollback-on-failure --timeout 300s --set nameOverride="$HELM_RELEASE_NAME" --set image.repository="$REGISTRY_URL" --set image.tag="$BUILD_TAG" --set image.registrySecret="$K8S_SECRET_NAME"  --set service.internalport="$APP_PORT" --set context="$CONTEXT" --set ingress.paths.path="$CONTEXT" -f "$CHART_VALUES_PATH"
+          else
+              # Deploy using built-in Helm chart from current repository
+              echo "context: $CONTEXT" >> Helm.yaml
+              cat Helm.yaml
+              sed -i s+#SERVICE_NAME#+"$HELM_RELEASE_NAME"+g ./helm_chart/values.yaml ./helm_chart/Chart.yaml
+              # uncomment to print template files
+              # docker run --rm -v "$KUBECONFIG":"/.kube/config:ro" -e KUBECONFIG="/.kube/config" -v "$GITHUB_WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION template "$HELM_RELEASE_NAME" -n "$KUBE_NAMESPACE" helm_chart --rollback-on-failure --timeout 300s --set image.repository="$REGISTRY_URL" --set image.tag="$BUILD_TAG" --set image.registrySecret="$K8S_SECRET_NAME" -f Helm.yaml
+              docker run --rm -v "$KUBECONFIG":"/.kube/config:ro" -e KUBECONFIG="/.kube/config" -v "$GITHUB_WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION upgrade --install "$HELM_RELEASE_NAME" -n "$KUBE_NAMESPACE" helm_chart --rollback-on-failure --timeout 300s --set image.repository="$REGISTRY_URL" --set image.tag="$BUILD_TAG" --set image.registrySecret="$K8S_SECRET_NAME" -f Helm.yaml
+          fi
+      - name: Destroy
+        if: env.ACTION == 'DESTROY'
+        run: |
+          # Uninstall Helm release to destroy deployment
+          docker run --rm -v "$KUBECONFIG":"/.kube/config:ro" -e KUBECONFIG="/.kube/config" -v "$GITHUB_WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION uninstall "$HELM_RELEASE_NAME" -n "$KUBE_NAMESPACE"
+      - name: Checkout testcase repo
+        if: env.FUNCTIONAL_TESTING_FLAG == 'true'
+        env:
+          GIT_REPO_CRED_ID: ${{ secrets[env.GIT_REPO_CRED_ID] }}
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.TESTCASE_REPO_PATH }}
+          ref: ${{ env.TESTCASEREPOSITORYBRANCH }}
+          path: ./testcaseRepo
+          token: ${{ env.GIT_REPO_CRED_ID }}
+      - name: Functional Testing
+        if: env.FUNCTIONAL_TESTING_FLAG == 'true'
+        run: |
+          # Determine the live URL for testing based on deployment type
+          liveurl=""
+          if [[ "$DOCKERHOST" = '' || "$DOCKERHOST" = 'null'  ]]; then
+            if [[ "$INGRESS_HOST" != "null" ]]; then
+              liveurl="$INGRESS_HOST"
+            else
+              liveurl="$INGRESS_ADDRESS"
+            fi
+            echo "liveurl in kubernetes: $liveurl"
+          else
+            liveurl="$DOCKERHOST:$SERVICE_PORT"
+            echo "liveurl in ec2: $liveurl"
+          fi
+
+          echo "SITE_URL under test: http://$liveurl$CONTEXT/"
+          echo "$liveurl"
+
+          # Function to run Selenium tests using Maven
+          runSeleniumTest() {
+              docker run --rm -v "$GITHUB_WORKSPACE"/testcaseRepo:/usr/src/mymaven --network=host -w /usr/src/mymaven $JAVA_IMAGE_FOR_FUNC_TESTING bash -c "$TESTCASECOMMAND -DSITE_URL=http://$liveurl$CONTEXT/"
+          }
+
+          # Function to run Cypress tests
+          runCypressTest() {
+            # Create test script for Cypress execution
+            cat <<EOL > test.sh
+          #!/bin/bash
+
+          rm -rf node_modules/ mochawesome-report/ cypress/videos/ cypress/screenshots/
+          apt-get update && apt-get install -y libgbm-dev
+          npm install --save-dev mochawesome mochawesome-merge
+          npm install
+
+
+          case "$TESTCASECOMMAND" in
+            *env*)
+                echo 'case env'
+                $TESTCASECOMMAND applicationUrl=http://${liveurl}$CONTEXT/ --browser $BROWSERTYPE --reporter mochawesome --reporter-options overwrite=false,html=false,json=true,charts=true
+                ;;
+            *)
+                echo 'case else'
+                $TESTCASECOMMAND -- --env applicationUrl=http://${liveurl}$CONTEXT/ --browser $BROWSERTYPE --reporter mochawesome --reporter-options overwrite=false,html=false,json=true,charts=true
+                ;;
+          esac
+
+
+          npx mochawesome-merge mochawesome-report/*.json > mochawesome-report/output.json
+          npx marge mochawesome-report/output.json mochawesome-report --inline
+          EOL
+            chmod +x test.sh
+            echo "mywork: $GITHUB_WORKSPACE"
+            ls -al $GITHUB_WORKSPACE/
+            ls -al $GITHUB_WORKSPACE/testcaseRepo/
+            # Run Cypress tests in Docker container
+            docker run -v "$GITHUB_WORKSPACE"/testcaseRepo:/app -w /app -e applicationUrl=http://${liveurl}$CONTEXT/ cypress/browsers:node-24.12.0-chrome-143.0.7499.109-1-ff-146.0-edge-143.0.3650.80-1 /bin/bash -c "./test.sh > test.out || true"
+            cat test.out
+
+            # Parse and display test results summary
+            awk 'BEGIN { for(i=1;i<=5;i++) printf "*+"; }
+            /(^[ ]*.+(failed|pended|pending|skipped|skipping)|^[ ]*[ ]+All specs passed).+/ {
+              for(i=4;i>=0;i--) switch (i) {
+                case 4: if( $(NF-i) ~ /^[0-9]/ ){printf "Tests run: " $(NF-i) ", ";} else{printf "Tests run: 0, " ;}  break;
+                case 3: if( $(NF-i) ~ /^[0-9]/ ){printf "Passed: " $(NF-i) ", ";} else{printf "Passed: 0, "} break;
+                case 2: if( $(NF-i) ~ /^[0-9]/ ){printf "Failures: " $(NF-i) ", ";} else{printf "Failures: 0, "}  break;
+                case 1: if( $(NF-i) ~ /^[0-9]/ ){printf "Pending: " $(NF-i) ", ";} else{printf "Pending: 0, "} break;
+                case 0: if( $(NF-i) ~ /^[0-9]/ ){printf "Skipped: " $(NF-i)} else{printf "Skipped: 0"} break;
+              }
+            } END { for(i=1;i<=5;i++) printf "*+"; }' test.out
+
+            pwd
+          }
+
+          # Execute tests based on testing tool type
+          cd testcaseRepo
+          if [[ "$TESTINGTOOLTYPE" == "selenium" ]]; then
+            runSeleniumTest
+            echo "REPORT_PATH=testcaseRepo/target/surefire-reports" >> "$GITHUB_ENV"
+            echo "XML_REPORT_PATH=testcaseRepo/target/surefire-reports/junitreports/*.xml" >> "$GITHUB_ENV"
+            #echo "XML_REPORT_PATH=testcaseRepo/target/surefire-reports/*.xml" >> "$GITHUB_ENV"
+          elif [[ "$TESTINGTOOLTYPE" == "cypress" ]]; then
+            echo "current directory: $PWD"
+            ls -al
+            runCypressTest
+            echo "REPORT_PATH=testcaseRepo/mochawesome-report" >> "$GITHUB_ENV"
+
+          fi
+        shell: bash
+      - name: Upload HTML Report as Artifact
+        if: env.FUNCTIONAL_TESTING_FLAG == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report
+          path: ${{ env.REPORT_PATH }}
+      - name: Publish Test Results
+        if: env.TESTINGTOOLTYPE == 'selenium' && env.FUNCTIONAL_TESTING_FLAG == 'true'
+        uses: dorny/test-reporter@v1
+        with:
+          name: JUnit Tests
+          path: ${{ env.XML_REPORT_PATH }}
+          reporter: java-junit
+      - name: Push to collector
+        continue-on-error: true
+        if: always()
+        env:
+          AGENT_API_KEY_SECRET: ${{ secrets[env.AGENT_API_KEY_SECRET] }}
+        run: |
+          if [[ -n "${KUBECONFIG:-}" && -f "$KUBECONFIG" ]]; then
+              rm -f "$KUBECONFIG"
+          fi
+          # Fix workspace permissions
+          chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
+
+          # Log workflow execution details
+          echo "Workflow Run ID:${GITHUB_RUN_ID}, Workflow Run Number: ${GITHUB_RUN_NUMBER}, Workflow Name: ${GITHUB_WORKFLOW}, Github Repository: ${GITHUB_REPOSITORY}, Job Name: ${GITHUB_JOB}, Tenant ID: $TENANT_ID, Target URI: $TARGET_URI"
+
+          # Send workflow execution data to collector if tenant info is available
+          if [[ $TENANT_ID != "" && $TARGET_URI != "" ]];then
+                curl --show-error --silent -i --request POST "$TARGET_URI/collector/orchestrator/devops/details" \
+                  -H "X-TenantID: ${TENANT_ID}" \
+                  -H 'Content-Type: application/json'\
+                  -d '{
+                        "workflowName": "'"${GITHUB_WORKFLOW}"'",
+                        "workflowId": "'"${GITHUB_RUN_ID}"'",
+                        "workflowRunNumber": "'"${GITHUB_RUN_NUMBER}"'",
+                        "repoName": "'"${GITHUB_REPOSITORY}"'",
+                        "agentId": "'"${AGENT_ID}"'",
+                        "devopsConfigId": "'"${DEVOPS_SETTING_ID}"'",
+                        "pipelineId": "'"${PIPELINE_ID}"'",
+                        "agentApiKey": "'"$AGENT_API_KEY_SECRET"'",
+                        "buildNumber": "'"${GITHUB_RUN_ID}"'",
+                        "deployedImageTag": "'"${BUILD_TAG}"'"
+                      }'
+                echo "push to collector stage Completed"
+          fi
